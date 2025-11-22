@@ -7,67 +7,38 @@ let state = {
   steps: [],
   completedElements: new Set(),
   currentPage: window.location.href,
-  actionHistory: []
+  actionHistory: [],
+  baseDomain: new URL(window.location.href).hostname,
+  isRecording: false,
+  recognition: null
 };
 
-// Load state from chrome.storage on init
-async function loadState() {
+// Load GSAP
+const gsapScript = document.createElement('script');
+gsapScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js';
+document.head.appendChild(gsapScript);
+
+// Get domain from URL
+function getDomain(url) {
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      const result = await chrome.storage.local.get(['navState']);
-      if (result.navState) {
-        const saved = result.navState;
-        state.isActive = saved.isActive || false;
-        state.goal = saved.goal || '';
-        state.apiKey = saved.apiKey || state.apiKey;
-        state.apiProvider = saved.apiProvider || 'openrouter';
-        state.currentStep = saved.currentStep || 0;
-        state.completedElements = new Set(saved.completedElements || []);
-        state.currentPage = saved.currentPage || window.location.href;
-        state.actionHistory = saved.actionHistory || [];
-        
-        console.log('[Content Script] State loaded:', state);
-        
-        // If navigation was active, resume it after a short delay
-        if (state.isActive && state.goal) {
-          console.log('[Content Script] Resuming navigation...');
-          setTimeout(async () => {
-            updateStatus(`Resuming: ${state.goal}`);
-            await highlightNextElement();
-          }, 1000);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('[State Load Error]', error);
+    return new URL(url).hostname;
+  } catch {
+    return '';
   }
 }
 
-// Save state to chrome.storage
-async function saveState() {
-  try {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({
-        navState: {
-          isActive: state.isActive,
-          goal: state.goal,
-          apiKey: state.apiKey,
-          apiProvider: state.apiProvider,
-          currentStep: state.currentStep,
-          completedElements: Array.from(state.completedElements),
-          currentPage: state.currentPage,
-          actionHistory: state.actionHistory
-        }
-      });
-      console.log('[Content Script] State saved');
-    }
-  } catch (error) {
-    console.error('[State Save Error]', error);
-  }
+// Check if we're still on the same domain
+function isSameDomain(url1, url2) {
+  return getDomain(url1) === getDomain(url2);
 }
 
-// Listen for messages from popup
+// Add ping listener for background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'ping') {
+    sendResponse({ status: 'active' });
+    return true;
+  }
+  
   if (request.action === 'startNavigation') {
     state.goal = request.goal;
     state.apiKey = request.apiKey;
@@ -82,21 +53,120 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     resetNavigation();
     sendResponse({ status: 'Reset complete' });
   }
+  
+  return true;
 });
+
+// Load state from chrome.storage on init
+async function loadState() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const result = await chrome.storage.local.get(['navState']);
+      if (result.navState) {
+        const saved = result.navState;
+        
+        const savedDomain = getDomain(saved.currentPage || '');
+        const currentDomain = getDomain(window.location.href);
+        
+        if (savedDomain && currentDomain && savedDomain === currentDomain) {
+          state.isActive = saved.isActive || false;
+          state.goal = saved.goal || '';
+          state.apiKey = saved.apiKey || state.apiKey;
+          state.apiProvider = saved.apiProvider || 'openrouter';
+          state.currentStep = saved.currentStep || 0;
+          state.completedElements = new Set(saved.completedElements || []);
+          state.actionHistory = saved.actionHistory || [];
+          state.baseDomain = savedDomain;
+          
+          console.log('[Content Script] State restored from same domain:', {
+            domain: currentDomain,
+            goal: state.goal,
+            step: state.currentStep,
+            completedCount: state.completedElements.size,
+            isActive: state.isActive
+          });
+          
+          state.currentPage = window.location.href;
+          await saveState();
+          
+          if (state.isActive && state.goal) {
+            console.log('[Content Script] Task is active, will resume navigation');
+            
+            setTimeout(() => {
+              const panel = document.getElementById('aiNavPanel');
+              const fab = document.getElementById('aiNavFab');
+              if (panel && fab && window.gsap) {
+                gsap.to(fab, { scale: 0, opacity: 0, duration: 0.3, display: 'none' });
+                gsap.to(panel, { scale: 1, opacity: 1, duration: 0.4, display: 'block', ease: 'back.out(1.7)' });
+              }
+              updateStatus(`Resuming: ${state.goal} (Step ${state.currentStep + 1})`);
+            }, 100);
+            
+            if (document.readyState === 'complete') {
+              resumeNavigation();
+            } else {
+              window.addEventListener('load', resumeNavigation, { once: true });
+            }
+          }
+        } else {
+          console.log('[Content Script] Different domain detected, resetting state');
+          await clearStoredState();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[State Load Error]', error);
+  }
+}
+
+async function resumeNavigation() {
+  updateStatus(`Resuming (Step ${state.currentStep + 1}): ${state.goal}`);
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  await highlightNextElement();
+}
+
+async function saveState() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const stateToSave = {
+        isActive: state.isActive,
+        goal: state.goal,
+        apiKey: state.apiKey,
+        apiProvider: state.apiProvider,
+        currentStep: state.currentStep,
+        completedElements: Array.from(state.completedElements),
+        currentPage: state.currentPage,
+        actionHistory: state.actionHistory,
+        savedAt: Date.now()
+      };
+      
+      await chrome.storage.local.set({ navState: stateToSave });
+      console.log('[Content Script] State saved:', {
+        step: state.currentStep,
+        completedCount: state.completedElements.size,
+        page: state.currentPage
+      });
+    }
+  } catch (error) {
+    console.error('[State Save Error]', error);
+  }
+}
+
+async function clearStoredState() {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    await chrome.storage.local.remove(['navState']);
+  }
+}
 
 // Initialize UI
 async function initUI() {
-  // Load saved state first
   await loadState();
-  
-  // Create UI immediately
   createUI();
-  
+  initSpeechRecognition();
   console.log('[Content Script] UI initialized');
 }
 
 function createUI() {
-  // Check if UI already exists
   if (document.getElementById('ai-nav-container')) {
     console.log('[Content Script] UI already exists');
     return;
@@ -107,7 +177,7 @@ function createUI() {
   container.className = 'ai-nav-container';
   container.innerHTML = `
     <button class="ai-nav-fab" id="aiNavFab">
-      🤖
+      <span>🤖</span>
     </button>
     
     <div class="ai-nav-panel" id="aiNavPanel">
@@ -118,15 +188,32 @@ function createUI() {
 
       <div class="ai-nav-main-view">
         <div class="ai-nav-input-box">
-          <input 
-            type="text" 
-            class="ai-nav-input" 
-            id="aiNavInput" 
-            placeholder="What do you want to do?"
-          />
-          <button class="ai-nav-send" id="aiNavSend">→</button>
+          <div class="ai-nav-input-wrapper">
+            <textarea 
+              class="ai-nav-input" 
+              id="aiNavInput" 
+              placeholder="What would you like me to do?"
+              rows="1"
+            ></textarea>
+            <button class="ai-nav-mic-btn" id="aiNavMic" title="Voice input">
+              🎤
+            </button>
+            <div class="ai-nav-audio-visualizer" id="audioVisualizer">
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+              <div class="ai-nav-audio-bar"></div>
+            </div>
+          </div>
+          <button class="ai-nav-send" id="aiNavSend" title="Send">
+            <span>→</span>
+          </button>
         </div>
-        <div class="ai-nav-status" id="aiNavStatus">Ready</div>
+        <div class="ai-nav-status" id="aiNavStatus">Ready to help you navigate</div>
       </div>
     </div>
   `;
@@ -134,35 +221,33 @@ function createUI() {
 
   console.log('[Content Script] UI created successfully');
 
-  // Event listeners
+  setupEventListeners();
+  setupTextareaAutoResize();
+}
+
+function setupEventListeners() {
   const fab = document.getElementById('aiNavFab');
-  const panel = document.getElementById('aiNavPanel');
   const closeBtn = document.getElementById('aiNavClose');
   
-  fab.addEventListener('click', () => {
-    openPanel();
-  });
+  fab.addEventListener('click', openPanel);
+  closeBtn.addEventListener('click', closePanel);
 
-  closeBtn.addEventListener('click', () => {
-    closePanel();
-  });
-
-  document.getElementById('aiNavSend').addEventListener('click', async () => {
-    if (!state.apiKey) {
-      updateStatus('❌ Please set API key');
-      return;
-    }
-    const goal = document.getElementById('aiNavInput').value.trim();
-    if (goal) {
-      document.getElementById('aiNavInput').value = '';
-      await startNavigation(goal);
-    }
-  });
-
+  document.getElementById('aiNavSend').addEventListener('click', handleSend);
   document.getElementById('aiNavInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      document.getElementById('aiNavSend').click();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
+  });
+
+  document.getElementById('aiNavMic').addEventListener('click', toggleSpeechRecognition);
+}
+
+function setupTextareaAutoResize() {
+  const textarea = document.getElementById('aiNavInput');
+  textarea.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
   });
 }
 
@@ -170,20 +255,162 @@ function openPanel() {
   const panel = document.getElementById('aiNavPanel');
   const fab = document.getElementById('aiNavFab');
   
-  panel.style.display = 'block';
-  fab.style.display = 'none';
+  if (window.gsap) {
+    gsap.to(fab, { 
+      scale: 0, 
+      rotate: 180, 
+      opacity: 0, 
+      duration: 0.3,
+      onComplete: () => fab.style.display = 'none'
+    });
+    
+    panel.style.display = 'block';
+    gsap.fromTo(panel, 
+      { scale: 0.8, opacity: 0, y: 20 },
+      { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(1.7)' }
+    );
+  } else {
+    panel.style.display = 'block';
+    fab.style.display = 'none';
+  }
   
   setTimeout(() => {
     document.getElementById('aiNavInput').focus();
-  }, 100);
+  }, 300);
 }
 
 function closePanel() {
   const panel = document.getElementById('aiNavPanel');
   const fab = document.getElementById('aiNavFab');
   
-  panel.style.display = 'none';
-  fab.style.display = 'flex';
+  if (window.gsap) {
+    gsap.to(panel, { 
+      scale: 0.8, 
+      opacity: 0, 
+      y: 20, 
+      duration: 0.3,
+      onComplete: () => panel.style.display = 'none'
+    });
+    
+    fab.style.display = 'flex';
+    gsap.fromTo(fab,
+      { scale: 0, rotate: -180, opacity: 0 },
+      { scale: 1, rotate: 0, opacity: 1, duration: 0.5, ease: 'back.out(1.7)' }
+    );
+  } else {
+    panel.style.display = 'none';
+    fab.style.display = 'flex';
+  }
+}
+
+async function handleSend() {
+  if (!state.apiKey) {
+    updateStatus('❌ Please set API key');
+    return;
+  }
+  const goal = document.getElementById('aiNavInput').value.trim();
+  if (goal) {
+    document.getElementById('aiNavInput').value = '';
+    document.getElementById('aiNavInput').style.height = 'auto';
+    
+    // Animate send button
+    if (window.gsap) {
+      gsap.to('#aiNavSend', { scale: 0.8, duration: 0.1, yoyo: true, repeat: 1 });
+    }
+    
+    await startNavigation(goal);
+  }
+}
+
+// Speech Recognition
+function initSpeechRecognition() {
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    state.recognition = new SpeechRecognition();
+    state.recognition.continuous = false;
+    state.recognition.interimResults = true;
+    state.recognition.lang = 'en-US';
+
+    state.recognition.onstart = () => {
+      console.log('[Speech] Recognition started');
+      state.isRecording = true;
+      const micBtn = document.getElementById('aiNavMic');
+      const visualizer = document.getElementById('audioVisualizer');
+      
+      micBtn.classList.add('recording');
+      visualizer.classList.add('active');
+      
+      if (window.gsap) {
+        gsap.to(micBtn, { scale: 1.2, duration: 0.3, ease: 'back.out(1.7)' });
+      }
+    };
+
+    state.recognition.onresult = (event) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const input = document.getElementById('aiNavInput');
+      if (finalTranscript) {
+        input.value = finalTranscript.trim();
+        input.dispatchEvent(new Event('input'));
+      } else if (interimTranscript) {
+        input.value = interimTranscript;
+      }
+    };
+
+    state.recognition.onerror = (event) => {
+      console.error('[Speech] Error:', event.error);
+      stopRecording();
+      if (event.error === 'no-speech') {
+        updateStatus('No speech detected. Try again.');
+      } else {
+        updateStatus(`Error: ${event.error}`);
+      }
+    };
+
+    state.recognition.onend = () => {
+      console.log('[Speech] Recognition ended');
+      stopRecording();
+    };
+  } else {
+    console.log('[Speech] Recognition not supported');
+  }
+}
+
+function toggleSpeechRecognition() {
+  if (!state.recognition) {
+    updateStatus('Speech recognition not supported in your browser');
+    return;
+  }
+
+  if (state.isRecording) {
+    state.recognition.stop();
+  } else {
+    document.getElementById('aiNavInput').value = '';
+    state.recognition.start();
+  }
+}
+
+function stopRecording() {
+  state.isRecording = false;
+  const micBtn = document.getElementById('aiNavMic');
+  const visualizer = document.getElementById('audioVisualizer');
+  
+  micBtn.classList.remove('recording');
+  visualizer.classList.remove('active');
+  
+  if (window.gsap) {
+    gsap.to(micBtn, { scale: 1, duration: 0.3, ease: 'back.out(1.7)' });
+  }
 }
 
 async function startNavigation(goal) {
@@ -193,24 +420,28 @@ async function startNavigation(goal) {
   state.steps = [];
   state.completedElements.clear();
   state.actionHistory = [];
+  state.currentPage = window.location.href;
+  state.baseDomain = getDomain(window.location.href);
 
   await saveState();
-  updateStatus('Planning steps...');
+  updateStatus('🧠 Planning your journey...', true);
+  
+  // Animate status
+  if (window.gsap) {
+    gsap.fromTo('#aiNavStatus', 
+      { scale: 0.95, opacity: 0.8 },
+      { scale: 1, opacity: 1, duration: 0.5, ease: 'back.out(1.7)' }
+    );
+  }
+  
   await highlightNextElement();
 }
 
 async function getPageElements() {
   const elements = [];
   const selectors = [
-    'button', 
-    'a', 
-    'input', 
-    'select', 
-    'textarea', 
-    '[role="button"]',
-    '[role="link"]',
-    '[role="textbox"]',
-    '[role="searchbox"]'
+    'button', 'a', 'input', 'select', 'textarea', 
+    '[role="button"]', '[role="link"]', '[role="textbox"]', '[role="searchbox"]'
   ];
   let id = 0;
 
@@ -226,18 +457,12 @@ async function getPageElements() {
       const style = window.getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden') return;
 
-      // Get comprehensive text information
       const text = (
-        el.textContent || 
-        el.value || 
-        el.placeholder || 
-        el.getAttribute('aria-label') || 
-        el.getAttribute('title') ||
-        el.getAttribute('alt') ||
-        ''
+        el.textContent || el.value || el.placeholder || 
+        el.getAttribute('aria-label') || el.getAttribute('title') ||
+        el.getAttribute('alt') || ''
       ).trim();
       
-      // Get additional context
       const href = el.getAttribute('href') || '';
       const className = el.className || '';
       const id_attr = el.id || '';
@@ -281,7 +506,7 @@ async function callOpenRouter(prompt) {
         'HTTP-Referer': window.location.href
       },
       body: JSON.stringify({
-model: 'kwaipilot/kat-coder-pro:free',        messages: [{ role: 'user', content: prompt }],
+        model: 'kwaipilot/kat-coder-pro:free',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
         max_tokens: 500
@@ -338,12 +563,10 @@ async function highlightNextElement() {
   const elements = await getPageElements();
   const pageUrl = window.location.href;
   
-  // Filter out completed elements
   const availableElements = elements.filter(e => !state.completedElements.has(e.id));
   
-  // Create detailed element list with more context
   const elementList = availableElements
-    .slice(0, 10000) // Show more elements
+    .slice(0, 10000)
     .map(e => {
       let description = `${e.id}: [${e.type}]`;
       if (e.text) description += ` "${e.text}"`;
@@ -355,7 +578,6 @@ async function highlightNextElement() {
     })
     .join('\n');
 
-  // Build action history for context
   const historyContext = state.actionHistory.length > 0 
     ? `\nPrevious actions taken:\n${state.actionHistory.map((h, i) => `${i + 1}. ${h}`).join('\n')}`
     : '';
@@ -401,7 +623,7 @@ REASONING: (one sentence explaining why this is the logical next step)`;
   const reasoningMatch = aiResponse.match(/REASONING:\s*(.+)/i);
 
   if (!elementMatch || elementMatch[1] === 'NONE') {
-    updateStatus('Goal completed! ✓');
+    updateStatus('✅ Goal completed successfully!');
     state.isActive = false;
     await saveState();
     return;
@@ -415,10 +637,9 @@ REASONING: (one sentence explaining why this is the logical next step)`;
   const targetElement = availableElements.find(e => e.id === targetId);
 
   if (targetElement) {
-    // Add to action history
     state.actionHistory.push(`${action} on "${targetElement.text.substring(0, 100)}" - ${reasoning}`);
     if (state.actionHistory.length > 5) {
-      state.actionHistory.shift(); // Keep only last 5 actions
+      state.actionHistory.shift();
     }
     
     highlightElement(targetElement, instruction, action);
@@ -427,7 +648,6 @@ REASONING: (one sentence explaining why this is the logical next step)`;
     updateStatus(`Step ${state.currentStep + 1}: ${instruction}`);
   } else {
     updateStatus('Element not found, retrying...');
-    state.completedElements.clear(); // Reset if element not found
     setTimeout(() => highlightNextElement(), 1000);
   }
 }
@@ -435,7 +655,6 @@ REASONING: (one sentence explaining why this is the logical next step)`;
 function highlightElement(elem, instruction, action) {
   removeHighlights();
 
-  // Create overlay instead of modifying element directly
   const overlay = document.createElement('div');
   overlay.className = 'ai-nav-highlight-overlay';
   overlay.id = 'ai-nav-highlight-overlay';
@@ -454,10 +673,16 @@ function highlightElement(elem, instruction, action) {
   
   document.body.appendChild(overlay);
 
-  // Scroll element into view
+  // Animate overlay with GSAP
+  if (window.gsap) {
+    gsap.fromTo(overlay,
+      { scale: 0.9, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.5, ease: 'back.out(1.7)' }
+    );
+  }
+
   elem.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-  // Create improved tooltip
   const tooltip = document.createElement('div');
   tooltip.className = 'ai-nav-tooltip';
   tooltip.innerHTML = `
@@ -467,14 +692,12 @@ function highlightElement(elem, instruction, action) {
   `;
   document.body.appendChild(tooltip);
 
-  // Position tooltip
   const tooltipHeight = 80;
   const spacing = 12;
   
   let tooltipTop = rect.top + scrollY - tooltipHeight - spacing;
   let arrowPosition = 'bottom';
   
-  // If tooltip would go off top of screen, show it below
   if (rect.top < tooltipHeight + spacing + 20) {
     tooltipTop = rect.bottom + scrollY + spacing;
     arrowPosition = 'top';
@@ -486,21 +709,19 @@ function highlightElement(elem, instruction, action) {
   tooltip.style.transform = 'translateX(-50%)';
   tooltip.id = 'ai-nav-tooltip';
   
-  // Position arrow
   const arrow = tooltip.querySelector('.ai-nav-tooltip-arrow');
   if (arrowPosition === 'bottom') {
-    arrow.style.bottom = '-6px';
+    arrow.style.bottom = '-8px';
     arrow.style.top = 'auto';
-    arrow.style.borderTop = '6px solid rgba(17, 24, 39, 0.95)';
+    arrow.style.borderTop = '8px solid rgba(17, 24, 39, 0.98)';
     arrow.style.borderBottom = 'none';
   } else {
-    arrow.style.top = '-6px';
+    arrow.style.top = '-8px';
     arrow.style.bottom = 'auto';
-    arrow.style.borderBottom = '6px solid rgba(17, 24, 39, 0.95)';
+    arrow.style.borderBottom = '8px solid rgba(17, 24, 39, 0.98)';
     arrow.style.borderTop = 'none';
   }
 
-  // Listen for interactions
   elem.element.addEventListener('click', onElementInteraction, { once: true });
   elem.element.addEventListener('input', onElementInteraction, { once: true });
   elem.element.addEventListener('change', onElementInteraction, { once: true });
@@ -514,35 +735,56 @@ function highlightElement(elem, instruction, action) {
 }
 
 function removeHighlights() {
-  // Remove overlay instead of modifying elements
   const overlay = document.getElementById('ai-nav-highlight-overlay');
   if (overlay) {
-    overlay.remove();
+    if (window.gsap) {
+      gsap.to(overlay, { 
+        scale: 0.9, 
+        opacity: 0, 
+        duration: 0.3,
+        onComplete: () => overlay.remove()
+      });
+    } else {
+      overlay.remove();
+    }
   }
 
   const tooltip = document.getElementById('ai-nav-tooltip');
   if (tooltip) {
-    tooltip.remove();
+    if (window.gsap) {
+      gsap.to(tooltip, { 
+        scale: 0.9, 
+        opacity: 0, 
+        duration: 0.3,
+        onComplete: () => tooltip.remove()
+      });
+    } else {
+      tooltip.remove();
+    }
   }
 }
 
 async function onElementInteraction(e) {
   console.log('[Element Interaction]', e.type);
-  updateStatus('Processing...');
+  updateStatus('⏳ Processing action...', true);
+  
+  state.currentStep++;
+  const beforeUrl = window.location.href;
+  await saveState();
   
   const waitTime = e.type === 'input' || e.type === 'keydown' ? 2500 : 1500;
   await new Promise(resolve => setTimeout(resolve, waitTime));
   
-  state.currentStep++;
+  const afterUrl = window.location.href;
   
-  if (window.location.href !== state.currentPage) {
-    state.currentPage = window.location.href;
-    state.completedElements.clear();
-    console.log('[Page Changed] Resetting completed elements');
+  if (beforeUrl === afterUrl) {
+    console.log('[Same page] Continuing navigation');
+    state.currentPage = afterUrl;
+    await saveState();
+    await highlightNextElement();
+  } else {
+    console.log('[Navigation detected] New page will load, state saved');
   }
-
-  await saveState();
-  await highlightNextElement();
 }
 
 function resetNavigation() {
@@ -552,25 +794,35 @@ function resetNavigation() {
   state.completedElements.clear();
   state.actionHistory = [];
   removeHighlights();
-  updateStatus('Ready');
+  updateStatus('Ready to help you navigate');
   
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.remove(['navState']);
-  }
+  clearStoredState();
 }
 
-function updateStatus(text) {
+function updateStatus(text, loading = false) {
   const status = document.getElementById('aiNavStatus');
   if (status) {
     status.textContent = text;
+    
+    if (loading) {
+      status.classList.add('loading');
+    } else {
+      status.classList.remove('loading');
+    }
+    
+    if (window.gsap) {
+      gsap.fromTo(status,
+        { y: -5, opacity: 0.8 },
+        { y: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.7)' }
+      );
+    }
   }
 }
 
-// Wait for DOM to be ready before initializing UI
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initUI);
 } else {
   initUI();
 }
 
-console.log('[Content Script] Loaded and waiting for DOM');
+console.log('[Content Script] Loaded and waiting for DOM!');
