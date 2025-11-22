@@ -1,5 +1,11 @@
 {
   "manifest_version": 3,
+  "web_accessible_resources": [
+       {
+      "resources": ["fonts/css/all.min.css", "fonts/*.woff2", "icons/gido.png"],
+         "matches": ["<all_urls>"]
+       }
+  ],
   "name": "AI Navigator",
   "version": "2.0",
   "description": "Navigate any website with AI assistance and voice control",
@@ -16,7 +22,6 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": ["content.css"],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -28,6 +33,7 @@
     "default_popup": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'",
+    "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com; object-src 'self'"
   }
 }
