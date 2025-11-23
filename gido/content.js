@@ -160,114 +160,6 @@ async function initUI() {
   console.log('[Content Script] UI initialized');
 }
 
-function injectPageStyles() {
-  if (document.getElementById('ai-nav-page-styles')) return;
-  
-  // Add Font Awesome to page
-  const fontAwesomeLink = document.createElement('link');
-  fontAwesomeLink.rel = 'stylesheet';
-  fontAwesomeLink.href = chrome.runtime.getURL('fonts/css/all.min.css');
-  document.head.appendChild(fontAwesomeLink);
-  
-  const style = document.createElement('style');
-  style.id = 'ai-nav-page-styles';
-  style.textContent = `
-    .ai-nav-highlight-overlay {
-      border: 3px solid #667eea !important;
-      border-radius: 12px !important;
-      box-shadow: 
-        0 0 0 5px rgba(102, 126, 234, 0.15),
-        0 0 30px rgba(102, 126, 234, 0.3),
-        inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
-      animation: ai-pulse-overlay 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
-      pointer-events: none !important;
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%) !important;
-      position: absolute !important;
-      z-index: 999997 !important;
-    }
-
-    @keyframes ai-pulse-overlay {
-      0%, 100% {
-        box-shadow: 
-          0 0 0 5px rgba(102, 126, 234, 0.15),
-          0 0 30px rgba(102, 126, 234, 0.3),
-          inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
-      }
-      50% {
-        box-shadow: 
-          0 0 0 8px rgba(102, 126, 234, 0.25),
-          0 0 45px rgba(102, 126, 234, 0.5),
-          inset 0 0 0 2px rgba(255, 255, 255, 0.7) !important;
-      }
-    }
-
-    .ai-nav-tooltip {
-      background: linear-gradient(135deg, rgba(31, 41, 55, 0.96) 0%, rgba(17, 24, 39, 0.96) 100%) !important;
-      backdrop-filter: blur(12px) !important;
-      -webkit-backdrop-filter: blur(12px) !important;
-      color: white !important;
-      padding: 14px 18px !important;
-      border-radius: 12px !important;
-      font-size: 13px !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
-      z-index: 999998 !important;
-      pointer-events: none !important;
-      box-shadow: 
-        0 10px 28px rgba(0, 0, 0, 0.25),
-        0 0 0 1px rgba(255, 255, 255, 0.08) !important;
-      max-width: 220px !important;
-      text-align: center !important;
-      line-height: 1.5 !important;
-      white-space: normal !important;
-      word-wrap: break-word !important;
-      animation: ai-tooltip-fadein 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-      position: absolute !important;
-    }
-
-    @keyframes ai-tooltip-fadein {
-      from {
-        opacity: 0 !important;
-        transform: translateX(-50%) translateY(10px) scale(0.9) !important;
-      }
-      to {
-        opacity: 1 !important;
-        transform: translateX(-50%) translateY(0) scale(1) !important;
-      }
-    }
-
-    .ai-nav-tooltip-action {
-      font-size: 11px !important;
-      font-weight: 800 !important;
-      letter-spacing: 1.2px !important;
-      margin-bottom: 6px !important;
-      background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%) !important;
-      -webkit-background-clip: text !important;
-      -webkit-text-fill-color: transparent !important;
-      background-clip: text !important;
-      text-transform: uppercase !important;
-    }
-
-    .ai-nav-tooltip-instruction {
-      font-size: 13px !important;
-      font-weight: 500 !important;
-      opacity: 0.95 !important;
-      line-height: 1.5 !important;
-      color: #f3f4f6 !important;
-    }
-
-    .ai-nav-tooltip-arrow {
-      position: absolute !important;
-      left: 50% !important;
-      width: 0 !important;
-      height: 0 !important;
-      border-left: 8px solid transparent !important;
-      border-right: 8px solid transparent !important;
-      pointer-events: none !important;
-    }
-  `;
-  document.head.appendChild(style);
-  console.log('[Page Styles] Injected highlight and tooltip styles');
-}
 
 function createUIShadowDOM() {
   if (getElementFromShadow('ai-nav-container')) {
@@ -342,12 +234,6 @@ function createUIShadowDOM() {
       transform: scale(0.95) !important;
     }
 
-    .gido-icon {
-      width: 32px !important;
-      height: 32px !important;
-      object-fit: contain !important;
-    }
-
     .gido-logo {
       width: 32px !important;
       height: 32px !important;
@@ -363,15 +249,10 @@ function createUIShadowDOM() {
       bottom: 30px !important;
       right: 30px !important;
       width: 380px !important;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
-      backdrop-filter: blur(20px) !important;
-      -webkit-backdrop-filter: blur(20px) !important;
-      border: 1px solid rgba(255, 255, 255, 0.3) !important;
+      background: #ffffff !important;
+      border: 1px solid #e5e7eb !important;
       border-radius: 16px !important;
-      box-shadow: 
-        0 20px 60px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.05) !important;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12) !important;
       display: none !important;
       flex-direction: column !important;
       z-index: 999999 !important;
@@ -383,24 +264,30 @@ function createUIShadowDOM() {
     }
 
     .panel-header {
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
-      backdrop-filter: blur(10px) !important;
-      -webkit-backdrop-filter: blur(10px) !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
-      color: white !important;
-      padding: 16px 20px !important;
+      background: #ffffff !important;
+      color: #1f2937 !important;
+      padding: 18px 20px !important;
       display: flex !important;
       justify-content: space-between !important;
       align-items: center !important;
+      border-bottom: 1px solid #f0f0f0 !important;
     }
 
     .panel-header h3 {
       font-size: 16px !important;
-      font-weight: 600 !important;
+      font-weight: 700 !important;
       display: flex !important;
       align-items: center !important;
-      gap: 8px !important;
+      gap: 10px !important;
       margin: 0 !important;
+      letter-spacing: -0.3px !important;
+      color: #1f2937 !important;
+    }
+
+    .header-icon {
+      width: 20px !important;
+      height: 20px !important;
+      color: #15803d !important;
     }
 
     .icon {
@@ -411,11 +298,11 @@ function createUIShadowDOM() {
     }
 
     .close-btn {
-      background: rgba(255, 255, 255, 0.2) !important;
+      background: #f3f4f6 !important;
       border: none !important;
-      color: white !important;
-      width: 32px !important;
-      height: 32px !important;
+      color: #6b7280 !important;
+      width: 36px !important;
+      height: 36px !important;
       border-radius: 8px !important;
       cursor: pointer !important;
       display: flex !important;
@@ -427,36 +314,40 @@ function createUIShadowDOM() {
     }
 
     .close-btn:hover {
-      background: rgba(255, 255, 255, 0.3) !important;
+      background: #e5e7eb !important;
+      color: #374151 !important;
+      transform: scale(1.05) !important;
+    }
+
+    .close-btn:active {
+      transform: scale(0.95) !important;
     }
 
     .input-section {
-      padding: 16px !important;
+      padding: 16px 20px !important;
       display: flex !important;
-      gap: 10px !important;
-      align-items: center !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(102, 126, 234, 0.05) 100%) !important;
+      gap: 0 !important;
+      align-items: flex-end !important;
+      border-bottom: 1px solid #f0f0f0 !important;
+      background: #ffffff !important;
     }
 
     .input-wrapper {
       flex: 1 !important;
       display: flex !important;
-      gap: 8px !important;
+      gap: 10px !important;
       align-items: center !important;
-      background: rgba(255, 255, 255, 0.1) !important;
-      backdrop-filter: blur(10px) !important;
-      -webkit-backdrop-filter: blur(10px) !important;
-      border: 1px solid rgba(255, 255, 255, 0.2) !important;
-      border-radius: 24px !important;
-      padding: 12px 16px !important;
+      background: #f9fafb !important;
+      border: 1.5px solid #e5e7eb !important;
+      border-radius: 10px !important;
+      padding: 12px 14px !important;
       transition: all 0.2s !important;
     }
 
     .input-wrapper:focus-within {
-      border-color: rgba(255, 255, 255, 0.4) !important;
-      background: rgba(255, 255, 255, 0.15) !important;
-      box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.2) !important;
+      border-color: #15803d !important;
+      background: #ffffff !important;
+      box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.08) !important;
     }
 
     .input-field {
@@ -469,17 +360,19 @@ function createUIShadowDOM() {
       resize: none !important;
       max-height: 60px !important;
       color: #1f2937 !important;
+      font-weight: 500 !important;
     }
 
     .input-field::placeholder {
-      color: rgba(0, 0, 0, 0.5) !important;
+      color: #9ca3af !important;
+      font-weight: 400 !important;
     }
 
     .icon-btn {
       background: none !important;
       border: none !important;
       cursor: pointer !important;
-      color: #9ca3af !important;
+      color: #d1d5db !important;
       font-size: 16px !important;
       padding: 0 !important;
       display: flex !important;
@@ -491,34 +384,39 @@ function createUIShadowDOM() {
     }
 
     .icon-btn:hover {
-      color: #667eea !important;
+      color: #15803d !important;
+      transform: scale(1.1) !important;
     }
 
     .icon-btn.recording {
-      color: #ef4444 !important;
+      color: #dc2626 !important;
       animation: ai-pulse 1.5s ease-in-out infinite !important;
     }
 
     .send-btn {
-      width: 40px !important;
-      height: 40px !important;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      width: 24px !important;
+      height: 24px !important;
+      background: #15803d !important;
       border: none !important;
-      border-radius: 50% !important;
+      border-radius: 4px !important;
       cursor: pointer !important;
       color: white !important;
-      font-size: 16px !important;
+      font-size: 14px !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       transition: all 0.2s !important;
       flex-shrink: 0 !important;
       padding: 0 !important;
+      box-shadow: none !important;
+      margin-left: 4px !important;
     }
 
     .send-btn:hover {
-      transform: scale(1.05) !important;
-      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4) !important;
+      background: #166534 !important;
+      color: white !important;
+      transform: scale(1.1) !important;
+      box-shadow: none !important;
     }
 
     .send-btn:active {
@@ -526,13 +424,10 @@ function createUIShadowDOM() {
     }
 
     .status-box {
-      padding: 16px !important;
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
-      backdrop-filter: blur(10px) !important;
-      -webkit-backdrop-filter: blur(10px) !important;
-      border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
-      border-left: 4px solid rgba(102, 126, 234, 0.3) !important;
-      min-height: 60px !important;
+      padding: 16px 20px !important;
+      background: #f9fafb !important;
+      border-top: 1px solid #f0f0f0 !important;
+      min-height: 68px !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -540,16 +435,16 @@ function createUIShadowDOM() {
 
     .status-text {
       font-size: 13px !important;
-      color: #4b5563 !important;
+      color: #6b7280 !important;
       font-weight: 500 !important;
       text-align: center !important;
-      line-height: 1.4 !important;
+      line-height: 1.5 !important;
       margin: 0 !important;
     }
 
     .status-text i {
-      margin-right: 6px !important;
-      color: #667eea !important;
+      margin-right: 8px !important;
+      color: #15803d !important;
     }
 
     .status-text.loading i {
@@ -572,18 +467,96 @@ function createUIShadowDOM() {
         max-height: 70vh !important;
       }
     }
+  `;
+  shadowRoot.appendChild(style);
 
-    /* TOOLTIP STYLES */
+  const container = document.createElement('div');
+  container.id = 'ai-nav-container';
+  container.className = 'ai-nav-container';
+  container.innerHTML = `
+    <button class="ai-nav-fab" id="aiNavFab">
+      <img src="${chrome.runtime.getURL('icons/gido.png')}" alt="Gido" class="gido-logo">
+    </button>
+    <div class="ai-nav-panel" id="aiNavPanel">
+      <div class="panel-header">
+        <h3>
+          <svg class="icon header-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          GIDO
+        </h3>
+        <button class="close-btn" id="aiNavClose">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="input-section">
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            class="input-field" 
+            placeholder="What should I do?"
+            id="aiNavInput"
+          >
+          <button class="icon-btn" id="aiNavMic">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v12a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
+          <button class="send-btn" id="aiNavSend">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="status-box">
+        <div class="status-text" id="aiNavStatus">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          Ready to help
+        </div>
+      </div>
+    </div>
+  `;
+  shadowRoot.appendChild(container);
+
+  console.log('[Content Script] UI created');
+  setupEventListeners();
+  setupTextareaAutoResize();
+}
+
+function injectPageStyles() {
+  if (document.getElementById('ai-nav-page-styles')) return;
+  
+  // Add Font Awesome to page
+  const fontAwesomeLink = document.createElement('link');
+  fontAwesomeLink.rel = 'stylesheet';
+  fontAwesomeLink.href = chrome.runtime.getURL('fonts/css/all.min.css');
+  document.head.appendChild(fontAwesomeLink);
+  
+  const style = document.createElement('style');
+  style.id = 'ai-nav-page-styles';
+  style.textContent = `
     .ai-nav-highlight-overlay {
-      border: 3px solid #667eea !important;
+      border: 3px solid #15803d !important;
       border-radius: 12px !important;
       box-shadow: 
-        0 0 0 5px rgba(102, 126, 234, 0.15),
-        0 0 30px rgba(102, 126, 234, 0.3),
+        0 0 0 5px rgba(21, 128, 61, 0.12),
+        0 0 30px rgba(21, 128, 61, 0.25),
         inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
       animation: ai-pulse-overlay 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
       pointer-events: none !important;
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%) !important;
+      background: linear-gradient(135deg, rgba(21, 128, 61, 0.06) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
       position: absolute !important;
       z-index: 999997 !important;
     }
@@ -591,31 +564,28 @@ function createUIShadowDOM() {
     @keyframes ai-pulse-overlay {
       0%, 100% {
         box-shadow: 
-          0 0 0 5px rgba(102, 126, 234, 0.15),
-          0 0 30px rgba(102, 126, 234, 0.3),
+          0 0 0 5px rgba(21, 128, 61, 0.12),
+          0 0 30px rgba(21, 128, 61, 0.25),
           inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
       }
       50% {
         box-shadow: 
-          0 0 0 8px rgba(102, 126, 234, 0.25),
-          0 0 45px rgba(102, 126, 234, 0.5),
+          0 0 0 8px rgba(21, 128, 61, 0.2),
+          0 0 45px rgba(21, 128, 61, 0.4),
           inset 0 0 0 2px rgba(255, 255, 255, 0.7) !important;
       }
     }
 
     .ai-nav-tooltip {
-      background: linear-gradient(135deg, rgba(31, 41, 55, 0.96) 0%, rgba(17, 24, 39, 0.96) 100%) !important;
-      backdrop-filter: blur(12px) !important;
-      -webkit-backdrop-filter: blur(12px) !important;
+      background: #1f2937 !important;
       color: white !important;
-      padding: 14px 18px !important;
-      border-radius: 12px !important;
+      padding: 12px 16px !important;
+      border-radius: 10px !important;
       font-size: 13px !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
       z-index: 999998 !important;
       pointer-events: none !important;
-      box-shadow: 
-        0 10px 28px rgba(0, 0, 0, 0.25),
-        0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3) !important;
       max-width: 220px !important;
       text-align: center !important;
       line-height: 1.5 !important;
@@ -641,10 +611,7 @@ function createUIShadowDOM() {
       font-weight: 800 !important;
       letter-spacing: 1.2px !important;
       margin-bottom: 6px !important;
-      background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%) !important;
-      -webkit-background-clip: text !important;
-      -webkit-text-fill-color: transparent !important;
-      background-clip: text !important;
+      color: #10b981 !important;
       text-transform: uppercase !important;
     }
 
@@ -659,7 +626,6 @@ function createUIShadowDOM() {
     .ai-nav-tooltip-arrow {
       position: absolute !important;
       left: 50% !important;
-      transform: translateX(-50%) !important;
       width: 0 !important;
       height: 0 !important;
       border-left: 8px solid transparent !important;
@@ -667,95 +633,8 @@ function createUIShadowDOM() {
       pointer-events: none !important;
     }
   `;
-  shadowRoot.appendChild(style);
-
-  const container = document.createElement('div');
-  container.id = 'ai-nav-container';
-  container.className = 'ai-nav-container';
-  container.innerHTML = `
-    <button class="ai-nav-fab" id="aiNavFab">
-      <img src="${chrome.runtime.getURL('icons/gido.png')}" alt="Gido" class="gido-logo">
-    </button>
-    <div class="ai-nav-panel" id="aiNavPanel">
-      <div class="panel-header">
-        <h3>
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-          </svg>
-          AI Navigator
-        </h3>
-        <button class="close-btn" id="aiNavClose">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <div class="input-section">
-        <div class="input-wrapper">
-          <input 
-            type="text" 
-            class="input-field" 
-            placeholder="What would you like me to do?"
-            id="aiNavInput"
-          >
-          <button class="icon-btn" id="aiNavMic">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 1a3 3 0 0 0-3 3v12a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="23"></line>
-              <line x1="8" y1="23" x2="16" y2="23"></line>
-            </svg>
-          </button>
-        </div>
-        <button class="send-btn" id="aiNavSend">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <polyline points="19 12 12 19 5 12"></polyline>
-          </svg>
-        </button>
-      </div>
-      <div class="status-box">
-        <div class="status-text" id="aiNavStatus">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-          Ready to help you navigate
-        </div>
-      </div>
-    </div>
-  `;
-  shadowRoot.appendChild(container);
-
-  console.log('[Content Script] UI created');
-  setupEventListeners();
-  setupTextareaAutoResize();
-}
-
-function setupEventListeners() {
-  const fab = getElementFromShadow('aiNavFab');
-  const closeBtn = getElementFromShadow('aiNavClose');
-  
-  fab.addEventListener('click', openPanel);
-  closeBtn.addEventListener('click', closePanel);
-  getElementFromShadow('aiNavSend').addEventListener('click', handleSend);
-  getElementFromShadow('aiNavInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  });
-  getElementFromShadow('aiNavMic').addEventListener('click', toggleSpeechRecognition);
-}
-
-function setupTextareaAutoResize() {
-  const textarea = getElementFromShadow('aiNavInput');
-  textarea.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 60) + 'px';
-  });
+  document.head.appendChild(style);
+  console.log('[Page Styles] Injected highlight and tooltip styles');
 }
 
 function openPanel() {
@@ -791,6 +670,31 @@ function closePanel() {
     fab.classList.remove('hidden');
   }
 }
+
+function setupEventListeners() {
+  const fab = getElementFromShadow('aiNavFab');
+  const closeBtn = getElementFromShadow('aiNavClose');
+  
+  fab.addEventListener('click', openPanel);
+  closeBtn.addEventListener('click', closePanel);
+  getElementFromShadow('aiNavSend').addEventListener('click', handleSend);
+  getElementFromShadow('aiNavInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+  getElementFromShadow('aiNavMic').addEventListener('click', toggleSpeechRecognition);
+}
+
+function setupTextareaAutoResize() {
+  const textarea = getElementFromShadow('aiNavInput');
+  textarea.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 60) + 'px';
+  });
+}
+
 
 function updateStatus(text, loading = false) {
   const status = getElementFromShadow('aiNavStatus');
