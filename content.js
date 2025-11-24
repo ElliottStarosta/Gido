@@ -1,8 +1,7 @@
 let state = {
   isActive: false,
   goal: '',
-  apiKey: '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',
-  apiProvider: 'openrouter',
+  apiServerUrl: 'https://gido-zb9c.onrender.com',
   currentStep: 0,
   steps: [],
   completedElements: new Set(),
@@ -13,6 +12,7 @@ let state = {
   recognition: null,
   shadowRoot: null
 };
+
 state.isClickInterceptionActive = false;
 
 function enableClickInterception() {
@@ -804,10 +804,6 @@ function updateStatus(text, loading = false) {
 }
 
 async function handleSend() {
-  if (!state.apiKey) {
-    updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> Please set API key');
-    return;
-  }
   const goal = getElementFromShadow('aiNavInput').value.trim();
   if (!goal) return;
   getElementFromShadow('aiNavInput').value = '';
@@ -946,12 +942,11 @@ async function getPageElements() {
 
 async function callAPI(prompt) {
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(`${state.apiServerUrl}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${state.apiKey}`,
-        'HTTP-Referer': window.location.href
+        'Referer': window.location.href
       },
       body: JSON.stringify({
         model: 'kwaipilot/kat-coder-pro:free',
