@@ -1,7 +1,7 @@
 let state = {
   isActive: false,
   goal: '',
-  apiKey: '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',
+  apiKey: 'GOONKEY',
   apiProvider: 'openrouter',
   currentStep: 0,
   steps: [],
@@ -13,6 +13,40 @@ let state = {
   recognition: null,
   shadowRoot: null
 };
+state.isClickInterceptionActive = false;
+
+function enableClickInterception() {
+  state.isClickInterceptionActive = true;
+  updateStatus('Click mode enabled - click any element on the page');
+  
+  document.addEventListener('click', handleDirectClick, true);
+}
+function disableClickInterception() {
+  state.isClickInterceptionActive = false;
+  document.removeEventListener('click', handleDirectClick, true);
+}
+function handleDirectClick(e) {
+  if (!state.isClickInterceptionActive || !state.isActive) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const clickedElement = e.target;
+  console.log('[Direct Click]', clickedElement);
+  
+  // Mark as completed and trigger interaction
+  const allElements = document.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], [role="textbox"], [role="searchbox"]');
+  for (let i = 0; i < allElements.length; i++) {
+    if (allElements[i] === clickedElement || allElements[i].contains(clickedElement)) {
+      state.completedElements.add(`elem_${i}`);
+      break;
+    }
+  }
+  
+  disableClickInterception();
+  onElementInteraction(e);
+}
+
 
 function loadGSAP() {
   return new Promise((resolve) => {
@@ -157,7 +191,45 @@ async function initUI() {
   createUIShadowDOM();
   injectPageStyles();
   initSpeechRecognition();
+  document.addEventListener('keydown', handleKeyboardShortcuts);
   console.log('[Content Script] UI initialized');
+}
+
+function handleKeyboardShortcuts(e) {
+  // Alt + Shift + E: Complete goal and stop navigation
+  if (e.altKey && e.shiftKey && e.code === 'KeyE') {
+    e.preventDefault();
+    completeGoal();
+    return;
+  }
+  
+  // Alt + Shift + C: Enable click mode (optional - allows clicking elements directly)
+  if (e.altKey && e.shiftKey && e.code === 'KeyC') {
+    e.preventDefault();
+    if (state.isActive) {
+      enableClickInterception();
+    }
+    return;
+  }
+}
+
+function completeGoal() {
+  if (!state.isActive) {
+    updateStatus('No active navigation to complete');
+    return;
+  }
+  
+  removeHighlights();
+  state.isActive = false;
+  state.goal = '';
+  state.currentStep = 0;
+  state.completedElements.clear();
+  state.actionHistory = [];
+  
+  updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed with keyboard shortcut!');
+  
+  saveState();
+  console.log('[Shortcut] Goal completed via Alt+Shift+E');
 }
 
 
