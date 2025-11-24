@@ -16,7 +16,7 @@
       right: 30px !important;
       width: 56px !important;
       height: 56px !important;
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%) !important;
+      background: linear-gradient(135deg, rgba(104, 234, 102, 0.2) 0%, rgba(85, 162, 75, 0.2) 100%) !important;
       backdrop-filter: blur(20px) !important;
       -webkit-backdrop-filter: blur(20px) !important;
       border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
@@ -28,9 +28,9 @@
       font-size: 26px !important;
       color: white !important;
       box-shadow: 
-        0 8px 32px rgba(102, 126, 234, 0.15),
+        0 8px 32px rgba(159, 244, 95, 0.15),
         inset 0 1px 0 rgba(255, 255, 255, 0.3),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+        inset 0 -1px 0 rgba(101, 236, 89, 0.1) !important;
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
       z-index: 999999 !important;
       padding: 0 !important;
