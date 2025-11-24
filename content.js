@@ -1,7 +1,7 @@
 let state = {
   isActive: false,
   goal: '',
-  apiKey: 'GOONKEY',
+  apiKey: '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',
   apiProvider: 'openrouter',
   currentStep: 0,
   steps: [],
@@ -106,38 +106,35 @@ async function loadState() {
       const result = await chrome.storage.local.get(['navState']);
       if (result.navState) {
         const saved = result.navState;
-        const savedDomain = getDomain(saved.currentPage || '');
-        const currentDomain = getDomain(window.location.href);
-        if (savedDomain && currentDomain && savedDomain === currentDomain) {
-          state.isActive = saved.isActive || false;
-          state.goal = saved.goal || '';
-          state.apiKey = saved.apiKey || state.apiKey;
-          state.apiProvider = saved.apiProvider || 'openrouter';
-          state.currentStep = saved.currentStep || 0;
-          state.completedElements = new Set(saved.completedElements || []);
-          state.actionHistory = saved.actionHistory || [];
-          state.baseDomain = savedDomain;
-          state.currentPage = window.location.href;
-          await saveState();
-          if (state.isActive && state.goal) {
-            setTimeout(() => {
-              const panel = getElementFromShadow('aiNavPanel');
-              const fab = getElementFromShadow('aiNavFab');
-              if (panel && fab && window.gsap) {
-                gsap.to(fab, { scale: 0, opacity: 0, duration: 0.3, onComplete: () => fab.classList.add('hidden') });
-                gsap.to(panel, { scale: 1, opacity: 1, duration: 0.3 });
-                panel.classList.add('open');
-              }
-              updateStatus(`Resuming: ${state.goal}`);
-            }, 100);
-            if (document.readyState === 'complete') {
-              resumeNavigation();
-            } else {
-              window.addEventListener('load', resumeNavigation, { once: true });
+        // Load state regardless of domain if task is active
+        state.isActive = saved.isActive || false;
+        state.goal = saved.goal || '';
+        state.apiKey = saved.apiKey || state.apiKey;
+        state.apiProvider = saved.apiProvider || 'openrouter';
+        state.currentStep = saved.currentStep || 0;
+        state.completedElements = new Set(saved.completedElements || []);
+        state.actionHistory = saved.actionHistory || [];
+        state.currentPage = window.location.href;
+        // Update baseDomain to current domain for cross-domain navigation
+        state.baseDomain = getDomain(window.location.href);
+        await saveState();
+        
+        if (state.isActive && state.goal) {
+          setTimeout(() => {
+            const panel = getElementFromShadow('aiNavPanel');
+            const fab = getElementFromShadow('aiNavFab');
+            if (panel && fab && window.gsap) {
+              gsap.to(fab, { scale: 0, opacity: 0, duration: 0.3, onComplete: () => fab.classList.add('hidden') });
+              gsap.to(panel, { scale: 1, opacity: 1, duration: 0.3 });
+              panel.classList.add('open');
             }
+            updateStatus(`Resuming: ${state.goal}`);
+          }, 100);
+          if (document.readyState === 'complete') {
+            resumeNavigation();
+          } else {
+            window.addEventListener('load', resumeNavigation, { once: true });
           }
-        } else {
-          await clearStoredState();
         }
       }
     }
@@ -164,10 +161,11 @@ async function saveState() {
         completedElements: Array.from(state.completedElements),
         currentPage: state.currentPage,
         actionHistory: state.actionHistory,
+        baseDomain: state.baseDomain,
         savedAt: Date.now()
       };
       await chrome.storage.local.set({ navState: stateToSave });
-      console.log('[Content Script] State saved');
+      console.log('[Content Script] State saved across tabs');
     }
   } catch (error) {
     console.error('[State Save Error]', error);
@@ -177,6 +175,7 @@ async function saveState() {
 async function clearStoredState() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
     await chrome.storage.local.remove(['navState']);
+    console.log('[Content Script] State cleared - task completed');
   }
 }
 
@@ -225,10 +224,12 @@ function completeGoal() {
   state.currentStep = 0;
   state.completedElements.clear();
   state.actionHistory = [];
+  state.baseDomain = '';
   
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed with keyboard shortcut!');
   
-  saveState();
+  // Clear stored state when task is manually ended
+  clearStoredState();
   console.log('[Shortcut] Goal completed via Alt+Shift+E');
 }
 
@@ -246,11 +247,6 @@ function createUIShadowDOM() {
   const shadowRoot = host.attachShadow({ mode: 'open' });
   state.shadowRoot = shadowRoot;
 
-  // Load Font Awesome from extension resources
-  const fontAwesomeLink = document.createElement('link');
-  fontAwesomeLink.rel = 'stylesheet';
-  fontAwesomeLink.href = chrome.runtime.getURL('fonts/css/all.min.css');
-  shadowRoot.appendChild(fontAwesomeLink);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -609,13 +605,7 @@ function createUIShadowDOM() {
 
 function injectPageStyles() {
   if (document.getElementById('ai-nav-page-styles')) return;
-  
-  // Add Font Awesome to page
-  const fontAwesomeLink = document.createElement('link');
-  fontAwesomeLink.rel = 'stylesheet';
-  fontAwesomeLink.href = chrome.runtime.getURL('fonts/css/all.min.css');
-  document.head.appendChild(fontAwesomeLink);
-  
+
   const style = document.createElement('style');
   style.id = 'ai-nav-page-styles';
   style.textContent = `
@@ -656,7 +646,7 @@ function injectPageStyles() {
       font-size: 13px !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
       z-index: 999998 !important;
-      pointer-events: none !important;
+      pointer-events: auto !important;
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3) !important;
       max-width: 220px !important;
       text-align: center !important;
@@ -665,6 +655,40 @@ function injectPageStyles() {
       word-wrap: break-word !important;
       animation: ai-tooltip-fadein 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
       position: absolute !important;
+    }
+
+    .ai-nav-tooltip-magnifier {
+      position: fixed !important;
+      width: 150px !important;
+      height: 40px !important;
+      border: 3px solid #15803d !important;
+      border-radius: 10px !important;
+      background: white !important;
+      z-index: 999999 !important;
+      pointer-events: none !important;
+      display: none !important;
+      box-shadow: 
+        0 0 0 2px #15803d,
+        inset 0 0 15px rgba(21, 128, 61, 0.2),
+        0 8px 16px rgba(0, 0, 0, 0.2) !important;
+      overflow: hidden !important;
+    }
+
+    .ai-nav-tooltip-magnifier.active {
+      display: block !important;
+    }
+
+    .ai-nav-tooltip-magnifier-content {
+      position: absolute !important;
+      width: 220px !important;
+      height: 100px !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      color: #1f2937 !important;
+      line-height: 1.5 !important;
+      overflow: hidden !important;
+      white-space: normal !important;
+      word-wrap: break-word !important;
     }
 
     @keyframes ai-tooltip-fadein {
@@ -940,7 +964,6 @@ async function callAPI(prompt) {
     if (!response.ok) {
       const error = await response.json();
       console.error('[API Error]', error);
-      updateStatus('<i class="fas fa-exclamation-circle"></i> API Error');
       return null;
     }
 
@@ -948,7 +971,6 @@ async function callAPI(prompt) {
     return data.choices[0].message.content;
   } catch (error) {
     console.error('[API Error]', error);
-    updateStatus('<i class="fas fa-exclamation-circle"></i> API Error: ' + error.message);
     return null;
   }
 }
@@ -982,6 +1004,7 @@ USER'S GOAL: "${state.goal}"
 CURRENT CONTEXT:
 - Current page URL: ${pageUrl}
 - Step number: ${state.currentStep + 1}
+- Base domain: ${state.baseDomain}
 ${historyContext}
 
 AVAILABLE ELEMENTS ON THIS PAGE:
@@ -990,10 +1013,11 @@ ${elementList}
 INSTRUCTIONS:
 1. Analyze the current page and available elements carefully
 2. Think about what a human would naturally do next to accomplish the goal
-3. If you need to search, look for search boxes, search buttons, or search icons
-4. If you need to find a category, look for navigation links or category buttons
-5. Choose the MOST RELEVANT element that moves closer to the goal
-6. If no element seems relevant, respond with "NONE" to indicate the goal may be complete or impossible
+3. You may need to navigate between different domains/pages to complete this goal
+4. If you need to search, look for search boxes, search buttons, or search icons
+5. If you need to find a category, look for navigation links or category buttons
+6. Choose the MOST RELEVANT element that moves closer to the goal
+7. If no element seems relevant, respond with "NONE" to indicate the goal may be complete or impossible
 
 RESPONSE FORMAT (respond with ONLY this format):
 ELEMENT_ID: elem_X (or NONE if goal is complete/no relevant elements)
@@ -1016,9 +1040,9 @@ REASONING: (one sentence explaining why this is the logical next step)`;
   const reasoningMatch = aiResponse.match(/REASONING:\s*(.+)/i);
 
   if (!elementMatch || elementMatch[1] === 'NONE') {
-    updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed successfully!');
+    updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed successfully! Press Alt+Shift+E to end task.');
     state.isActive = false;
-    await saveState();
+    completeGoal();
     return;
   }
 
@@ -1031,14 +1055,14 @@ REASONING: (one sentence explaining why this is the logical next step)`;
 
   if (targetElement) {
     state.actionHistory.push(`${action} on "${targetElement.text.substring(0, 100)}" - ${reasoning}`);
-    if (state.actionHistory.length > 5) {
+    if (state.actionHistory.length > 10) {
       state.actionHistory.shift();
     }
     
     highlightElement(targetElement, instruction, action);
     state.completedElements.add(targetId);
     await saveState();
-    updateStatus(`<i class="fas fa-tasks"></i> Step ${state.currentStep + 1}: ${instruction}`);
+    updateStatus(`<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> Step ${state.currentStep + 1}: ${instruction}`);
   } else {
     updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> Element not found, retrying...');
     setTimeout(() => highlightNextElement(), 1000);
@@ -1080,6 +1104,16 @@ function highlightElement(elem, instruction, action) {
     <div class="ai-nav-tooltip-arrow"></div>
   `;
   document.body.appendChild(tooltip);
+
+  // Create magnifier glass
+  const magnifier = document.createElement('div');
+  magnifier.className = 'ai-nav-tooltip-magnifier';
+  magnifier.id = 'ai-nav-magnifier';
+  const magnifierContent = document.createElement('div');
+  magnifierContent.className = 'ai-nav-tooltip-magnifier-content';
+  magnifierContent.textContent = instruction;
+  magnifier.appendChild(magnifierContent);
+  document.body.appendChild(magnifier);
 
   // Force layout calculation to get tooltip dimensions
   const arrowSize = 8;
@@ -1146,6 +1180,34 @@ function highlightElement(elem, instruction, action) {
   }
   
   tooltip.dataset.elementId = elem.id;
+  
+  // Add magnifier hover effect to tooltip
+  tooltip.addEventListener('mouseenter', () => {
+    magnifier.classList.add('active');
+  });
+  
+  tooltip.addEventListener('mousemove', (e) => {
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const relX = e.clientX - tooltipRect.left;
+    const relY = e.clientY - tooltipRect.top;
+    
+    // Position magnifier at cursor
+    magnifier.style.left = (e.clientX - 50) + 'px';
+    magnifier.style.top = (e.clientY - 50) + 'px';
+    
+    // Calculate zoom offset - show 2x zoom
+    const zoomLevel = 2;
+    const offsetX = -(relX * zoomLevel - 50);
+    const offsetY = -(relY * zoomLevel - 50);
+    
+    magnifierContent.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${zoomLevel})`;
+    magnifierContent.style.transformOrigin = '0 0';
+  });
+  
+  tooltip.addEventListener('mouseleave', () => {
+    magnifier.classList.remove('active');
+  });
+  
   attachEventListeners(elem);
 }
 
@@ -1196,21 +1258,21 @@ async function onElementInteraction(e) {
   
   state.currentStep++;
   const beforeUrl = window.location.href;
+  const beforeDomain = getDomain(beforeUrl);
   await saveState();
   
   const waitTime = e.type === 'input' || e.type === 'keydown' ? 2500 : 1500;
   await new Promise(resolve => setTimeout(resolve, waitTime));
   
   const afterUrl = window.location.href;
+  const afterDomain = getDomain(afterUrl);
   
-  if (beforeUrl === afterUrl) {
-    console.log('[Same page] Continuing navigation');
-    state.currentPage = afterUrl;
-    await saveState();
-    await highlightNextElement();
-  } else {
-    console.log('[Navigation detected] New page will load');
-  }
+  // Update current page and continue navigation regardless of domain change
+  state.currentPage = afterUrl;
+  await saveState();
+  
+  console.log(`[Navigation] From ${beforeDomain} to ${afterDomain}`);
+  await highlightNextElement();
 }
 
 function resetNavigation() {
@@ -1219,6 +1281,7 @@ function resetNavigation() {
   state.currentStep = 0;
   state.completedElements.clear();
   state.actionHistory = [];
+  state.baseDomain = '';
   removeHighlights();
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg> Ready to help you navigate');
   clearStoredState();
