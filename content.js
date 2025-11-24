@@ -189,6 +189,7 @@ async function initUI() {
   await loadState();
   createUIShadowDOM();
   injectPageStyles();
+  updateTooltipColors();
   initSpeechRecognition();
   document.addEventListener('keydown', handleKeyboardShortcuts);
   console.log('[Content Script] UI initialized');
@@ -605,39 +606,30 @@ function createUIShadowDOM() {
 
 function injectPageStyles() {
   if (document.getElementById('ai-nav-page-styles')) return;
-
+  
   const style = document.createElement('style');
   style.id = 'ai-nav-page-styles';
   style.textContent = `
     .ai-nav-highlight-overlay {
       border: 3px solid #15803d !important;
       border-radius: 12px !important;
-      box-shadow: 
-        0 0 0 5px rgba(21, 128, 61, 0.12),
-        0 0 30px rgba(21, 128, 61, 0.25),
-        inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
+      box-shadow: 0 0 0 5px rgba(21, 128, 61, 0.12), 0 0 30px rgba(21, 128, 61, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
       animation: ai-pulse-overlay 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
       pointer-events: none !important;
       background: linear-gradient(135deg, rgba(21, 128, 61, 0.06) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
       position: absolute !important;
       z-index: 999997 !important;
     }
-
+    
     @keyframes ai-pulse-overlay {
       0%, 100% {
-        box-shadow: 
-          0 0 0 5px rgba(21, 128, 61, 0.12),
-          0 0 30px rgba(21, 128, 61, 0.25),
-          inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
+        box-shadow: 0 0 0 5px rgba(21, 128, 61, 0.12), 0 0 30px rgba(21, 128, 61, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
       }
       50% {
-        box-shadow: 
-          0 0 0 8px rgba(21, 128, 61, 0.2),
-          0 0 45px rgba(21, 128, 61, 0.4),
-          inset 0 0 0 2px rgba(255, 255, 255, 0.7) !important;
+        box-shadow: 0 0 0 8px rgba(21, 128, 61, 0.2), 0 0 45px rgba(21, 128, 61, 0.4), inset 0 0 0 2px rgba(255, 255, 255, 0.7) !important;
       }
     }
-
+    
     .ai-nav-tooltip {
       background: #1f2937 !important;
       color: white !important;
@@ -656,7 +648,11 @@ function injectPageStyles() {
       animation: ai-tooltip-fadein 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
       position: absolute !important;
     }
-
+    
+    .ai-nav-tooltip:hover {
+      cursor: none !important;
+    }
+    
     .ai-nav-tooltip-magnifier {
       position: fixed !important;
       width: 150px !important;
@@ -667,17 +663,15 @@ function injectPageStyles() {
       z-index: 999999 !important;
       pointer-events: none !important;
       display: none !important;
-      box-shadow: 
-        0 0 0 2px #15803d,
-        inset 0 0 15px rgba(21, 128, 61, 0.2),
-        0 8px 16px rgba(0, 0, 0, 0.2) !important;
+      box-shadow: 0 0 0 2px #15803d, inset 0 0 15px rgba(21, 128, 61, 0.2), 0 8px 16px rgba(0, 0, 0, 0.2) !important;
       overflow: hidden !important;
     }
-
+    
     .ai-nav-tooltip-magnifier.active {
       display: block !important;
+      cursor: none !important;
     }
-
+    
     .ai-nav-tooltip-magnifier-content {
       position: absolute !important;
       width: 220px !important;
@@ -690,7 +684,7 @@ function injectPageStyles() {
       white-space: normal !important;
       word-wrap: break-word !important;
     }
-
+    
     @keyframes ai-tooltip-fadein {
       from {
         opacity: 0 !important;
@@ -701,7 +695,7 @@ function injectPageStyles() {
         transform: translateX(-50%) translateY(0) scale(1) !important;
       }
     }
-
+    
     .ai-nav-tooltip-action {
       font-size: 11px !important;
       font-weight: 800 !important;
@@ -710,7 +704,7 @@ function injectPageStyles() {
       color: #10b981 !important;
       text-transform: uppercase !important;
     }
-
+    
     .ai-nav-tooltip-instruction {
       font-size: 13px !important;
       font-weight: 500 !important;
@@ -718,7 +712,7 @@ function injectPageStyles() {
       line-height: 1.5 !important;
       color: #f3f4f6 !important;
     }
-
+    
     .ai-nav-tooltip-arrow {
       position: absolute !important;
       left: 50% !important;
@@ -729,6 +723,7 @@ function injectPageStyles() {
       pointer-events: none !important;
     }
   `;
+  
   document.head.appendChild(style);
   console.log('[Page Styles] Injected highlight and tooltip styles');
 }
@@ -970,6 +965,127 @@ async function callAPI(prompt) {
   }
 }
 
+function getWebsiteColors() {
+  const colors = new Set();
+  const elements = document.querySelectorAll('*');
+  
+  for (let el of elements) {
+    if (elements.length > 5000) break; // Performance limit
+    const bgColor = window.getComputedStyle(el).backgroundColor;
+    const textColor = window.getComputedStyle(el).color;
+    
+    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') colors.add(bgColor);
+    if (textColor && textColor !== 'rgba(0, 0, 0, 0)') colors.add(textColor);
+  }
+  
+  return Array.from(colors).slice(0, 10);
+}
+
+function rgbToHex(rgb) {
+  const match = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!match) return '#000000';
+  return '#' + [match[1], match[2], match[3]].map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+}
+
+function getContrast(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+function getAccessibleColor(websiteColors) {
+  const candidates = [
+    '#ffffff', '#000000', '#15803d', '#dc2626', '#2563eb',
+    '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#fbbf24'
+  ];
+  
+  const avgContrast = websiteColors
+    .map(color => getContrast(rgbToHex(color)))
+    .reduce((a, b) => a + b, 0) / websiteColors.length;
+  
+  const targetDark = avgContrast > 128;
+  
+  const bestColor = candidates
+    .map(color => ({
+      color,
+      contrast: Math.abs(getContrast(color) - (targetDark ? 50 : 200)),
+      lightness: getContrast(color)
+    }))
+    .filter(c => {
+      const minContrast = targetDark ? 100 : 50;
+      return Math.abs(c.lightness - (targetDark ? 0 : 255)) > minContrast;
+    })
+    .sort((a, b) => a.contrast - b.contrast)[0];
+  
+  return bestColor?.color || (avgContrast > 128 ? '#ffffff' : '#000000');
+}
+
+function updateTooltipColors() {
+  const websiteColors = getWebsiteColors();
+  const textColor = getAccessibleColor(websiteColors);
+  const bgColor = getContrast(textColor) > 128 ? '#ffffff' : '#1a1a1a';
+  
+  const style = document.createElement('style');
+  style.id = 'ai-nav-accessible-colors';
+  style.textContent = `
+    .ai-nav-tooltip {
+      background: ${bgColor} !important;
+      color: ${textColor} !important;
+      border: 2px solid ${textColor} !important;
+    }
+    
+    .ai-nav-tooltip-action {
+      color: ${textColor} !important;
+      opacity: 0.9 !important;
+    }
+    
+    .ai-nav-tooltip-instruction {
+      color: ${textColor} !important;
+    }
+    
+    .ai-nav-tooltip-arrow {
+      border-top-color: ${bgColor} !important;
+      border-bottom-color: ${bgColor} !important;
+    }
+    
+    .ai-nav-tooltip-magnifier {
+      background: ${bgColor} !important;
+      border-color: ${textColor} !important;
+    }
+    
+    .ai-nav-tooltip-magnifier-content {
+      color: ${textColor} !important;
+    }
+    
+    .ai-nav-highlight-overlay {
+      border-color: ${textColor} !important;
+      border-radius: 12px !important;
+      box-shadow: 0 0 0 5px ${textColor}22, 0 0 30px ${textColor}40, inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
+      animation: ai-pulse-overlay 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+      pointer-events: none !important;
+      background: linear-gradient(135deg, ${textColor}0f 0%, ${textColor}0f 100%) !important;
+      position: absolute !important;
+      z-index: 999997 !important;
+    }
+    
+    @keyframes ai-pulse-overlay {
+      0%, 100% {
+        box-shadow: 0 0 0 5px ${textColor}22, 0 0 30px ${textColor}40, inset 0 0 0 2px rgba(255, 255, 255, 0.5) !important;
+      }
+      50% {
+        box-shadow: 0 0 0 8px ${textColor}33, 0 0 45px ${textColor}66, inset 0 0 0 2px rgba(255, 255, 255, 0.7) !important;
+      }
+    }
+  `;
+  
+  // Remove old style if exists
+  const oldStyle = document.getElementById('ai-nav-accessible-colors');
+  if (oldStyle) oldStyle.remove();
+  
+  document.head.appendChild(style);
+}
+
 async function highlightNextElement() {
   const elements = await getPageElements();
   const pageUrl = window.location.href;
@@ -1187,8 +1303,8 @@ function highlightElement(elem, instruction, action) {
     const relY = e.clientY - tooltipRect.top;
     
     // Position magnifier at cursor
-    magnifier.style.left = (e.clientX - 50) + 'px';
-    magnifier.style.top = (e.clientY - 50) + 'px';
+    magnifier.style.left = (e.clientX - 75) + 'px';
+    magnifier.style.top = (e.clientY - 20) + 'px';
     
     // Calculate zoom offset - show 2x zoom
     const zoomLevel = 2;
@@ -1243,6 +1359,20 @@ function removeHighlights() {
       });
     } else {
       tooltip.remove();
+    }
+  }
+
+  const magnifier = document.getElementById('ai-nav-magnifier');
+  if (magnifier) {
+    if (window.gsap) {
+      gsap.to(magnifier, { 
+        scale: 0.9, 
+        opacity: 0, 
+        duration: 0.3,
+        onComplete: () => magnifier.remove()
+      });
+    } else {
+      magnifier.remove();
     }
   }
 }
