@@ -15,6 +15,53 @@ let state = {
 
 state.isClickInterceptionActive = false;
 
+const HISTORY_LIMIT = 10;
+
+function normalizeActionHistory(rawHistory = []) {
+  if (!Array.isArray(rawHistory)) return [];
+  return rawHistory.map((entry, index) => {
+    if (typeof entry === 'string') {
+      return {
+        step: index + 1,
+        instruction: entry,
+        action: '',
+        targetText: '',
+        reasoning: entry,
+        timestamp: Date.now()
+      };
+    }
+    return {
+      step: entry?.step ?? index + 1,
+      instruction: entry?.instruction || entry?.text || entry?.summary || '',
+      action: entry?.action || '',
+      targetText: entry?.targetText || entry?.target || '',
+      reasoning: entry?.reasoning || '',
+      timestamp: entry?.timestamp || Date.now()
+    };
+  });
+}
+
+function escapeHtml(text = '') {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildHistoryContext() {
+  if (!state.actionHistory || state.actionHistory.length === 0) return '';
+  const lines = state.actionHistory
+    .map((entry, index) => {
+      const actionLabel = entry.action ? entry.action.toUpperCase() : 'STEP';
+      const detail = entry.instruction || entry.targetText || entry.reasoning || 'No detail available';
+      return `${index + 1}. ${actionLabel}: ${detail}`;
+    })
+    .join('\n');
+  return `\nPrevious actions taken:\n${lines}`;
+}
+
 function enableClickInterception() {
   state.isClickInterceptionActive = true;
   updateStatus('Click mode enabled - click any element on the page');
@@ -113,7 +160,7 @@ async function loadState() {
         state.apiProvider = saved.apiProvider || 'openrouter';
         state.currentStep = saved.currentStep || 0;
         state.completedElements = new Set(saved.completedElements || []);
-        state.actionHistory = saved.actionHistory || [];
+        state.actionHistory = normalizeActionHistory(saved.actionHistory || []);
         state.currentPage = window.location.href;
         // Update baseDomain to current domain for cross-domain navigation
         state.baseDomain = getDomain(window.location.href);
@@ -224,7 +271,7 @@ function completeGoal() {
   state.goal = '';
   state.currentStep = 0;
   state.completedElements.clear();
-  state.actionHistory = [];
+  clearActionHistory();
   state.baseDomain = '';
   
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed with keyboard shortcut!');
@@ -492,6 +539,100 @@ function createUIShadowDOM() {
       transform: scale(0.95) !important;
     }
 
+    .history-section {
+      padding: 16px 20px !important;
+      border-top: 1px solid #f0f0f0 !important;
+      border-bottom: 1px solid #f0f0f0 !important;
+      background: #ffffff !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 12px !important;
+      max-height: 220px !important;
+    }
+
+    .history-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      font-size: 13px !important;
+      color: #374151 !important;
+      font-weight: 600 !important;
+    }
+
+    .history-title {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+
+    .history-count {
+      font-size: 12px !important;
+      color: #6b7280 !important;
+      background: #f3f4f6 !important;
+      border-radius: 999px !important;
+      padding: 2px 8px !important;
+      font-weight: 600 !important;
+    }
+
+    .history-list {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 10px !important;
+      max-height: 170px !important;
+      overflow-y: auto !important;
+      padding-right: 4px !important;
+    }
+
+    .history-empty {
+      font-size: 12px !important;
+      color: #9ca3af !important;
+      text-align: center !important;
+      margin: 0 !important;
+    }
+
+    .history-item {
+      background: #f9fafb !important;
+      border: 1px solid #e5e7eb !important;
+      border-radius: 12px !important;
+      padding: 12px !important;
+    }
+
+    .history-item-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      font-size: 12px !important;
+      color: #6b7280 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px !important;
+    }
+
+    .history-item-step {
+      font-weight: 700 !important;
+      color: #111827 !important;
+    }
+
+    .history-item-action {
+      font-weight: 600 !important;
+      color: #047857 !important;
+    }
+
+    .history-item-instruction {
+      margin-top: 8px !important;
+      font-size: 13px !important;
+      color: #1f2937 !important;
+      font-weight: 600 !important;
+      line-height: 1.5 !important;
+    }
+
+    .history-item-target,
+    .history-item-reason {
+      margin-top: 6px !important;
+      font-size: 12px !important;
+      color: #4b5563 !important;
+      line-height: 1.4 !important;
+    }
+
     .status-box {
       padding: 16px 20px !important;
       background: #f9fafb !important;
@@ -585,6 +726,21 @@ function createUIShadowDOM() {
           </button>
         </div>
       </div>
+      <div class="history-section">
+        <div class="history-header">
+          <div class="history-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16v16H4z"></path>
+              <path d="M8 2v4M16 2v4M4 10h16"></path>
+            </svg>
+            Instruction history
+          </div>
+          <span class="history-count" id="aiNavHistoryCount">0</span>
+        </div>
+        <div class="history-list" id="aiNavHistoryList">
+          <p class="history-empty">No instructions yet.</p>
+        </div>
+      </div>
       <div class="status-box">
         <div class="status-text" id="aiNavStatus">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -598,6 +754,7 @@ function createUIShadowDOM() {
     </div>
   `;
   shadowRoot.appendChild(container);
+  renderActionHistory();
 
   console.log('[Content Script] UI created');
   setupEventListeners();
@@ -655,8 +812,8 @@ function injectPageStyles() {
     
     .ai-nav-tooltip-magnifier {
       position: fixed !important;
-      width: 150px !important;
-      height: 40px !important;
+      width: 425px !important;
+      height: 160px !important;
       border: 3px solid #15803d !important;
       border-radius: 10px !important;
       background: white !important;
@@ -798,6 +955,53 @@ function updateStatus(text, loading = false) {
   }
 }
 
+function renderActionHistory() {
+  const list = getElementFromShadow('aiNavHistoryList');
+  const count = getElementFromShadow('aiNavHistoryCount');
+  if (!list) return;
+
+  const history = state.actionHistory || [];
+  if (count) {
+    count.textContent = history.length;
+  }
+
+  if (history.length === 0) {
+    list.innerHTML = '<p class="history-empty">No instructions yet.</p>';
+    return;
+  }
+
+  const items = history
+    .map((entry, index) => {
+      const stepLabel = entry.step || index + 1;
+      const actionLabel = entry.action ? entry.action.toUpperCase() : 'STEP';
+      const targetLabel = entry.targetText
+        ? `<div class="history-item-target">${escapeHtml(entry.targetText)}</div>`
+        : '';
+      const reasoningLabel = entry.reasoning
+        ? `<div class="history-item-reason">${escapeHtml(entry.reasoning)}</div>`
+        : '';
+      return `
+        <div class="history-item">
+          <div class="history-item-header">
+            <span class="history-item-step">Step ${escapeHtml(stepLabel.toString())}</span>
+            <span class="history-item-action">${escapeHtml(actionLabel)}</span>
+          </div>
+          <div class="history-item-instruction">${escapeHtml(entry.instruction || 'Instruction unavailable')}</div>
+          ${targetLabel}
+          ${reasoningLabel}
+        </div>
+      `;
+    })
+    .join('');
+
+  list.innerHTML = items;
+}
+
+function clearActionHistory() {
+  state.actionHistory = [];
+  renderActionHistory();
+}
+
 async function handleSend() {
   const goal = getElementFromShadow('aiNavInput').value.trim();
   if (!goal) return;
@@ -888,7 +1092,7 @@ async function startNavigation(goal) {
   state.currentStep = 0;
   state.steps = [];
   state.completedElements.clear();
-  state.actionHistory = [];
+  clearActionHistory();
   state.currentPage = window.location.href;
   state.baseDomain = getDomain(window.location.href);
   await saveState();
@@ -1104,9 +1308,7 @@ async function highlightNextElement() {
     })
     .join('\n');
 
-  const historyContext = state.actionHistory.length > 0 
-    ? `\nPrevious actions taken:\n${state.actionHistory.map((h, i) => `${i + 1}. ${h}`).join('\n')}`
-    : '';
+  const historyContext = buildHistoryContext();
 
   const prompt = `You are an AI web navigation assistant helping a user accomplish a task. Think step-by-step like a human would navigate a website.
 
@@ -1165,11 +1367,23 @@ REASONING: (one sentence explaining why this is the logical next step)`;
   const targetElement = availableElements.find(e => e.id === targetId);
 
   if (targetElement) {
-    state.actionHistory.push(`${action} on "${targetElement.text.substring(0, 100)}" - ${reasoning}`);
-    if (state.actionHistory.length > 10) {
+    const targetPreview = targetElement.text
+      ? targetElement.text.substring(0, 100)
+      : (targetElement.elementId || targetElement.href || targetElement.type || '');
+    const historyEntry = {
+      step: state.currentStep + 1,
+      instruction,
+      action,
+      targetText: targetPreview,
+      reasoning,
+      timestamp: Date.now()
+    };
+    state.actionHistory.push(historyEntry);
+    if (state.actionHistory.length > HISTORY_LIMIT) {
       state.actionHistory.shift();
     }
-    
+    renderActionHistory();
+
     highlightElement(targetElement, instruction, action);
     state.completedElements.add(targetId);
     await saveState();
@@ -1303,13 +1517,13 @@ function highlightElement(elem, instruction, action) {
     const relY = e.clientY - tooltipRect.top;
     
     // Position magnifier at cursor
-    magnifier.style.left = (e.clientX - 75) + 'px';
-    magnifier.style.top = (e.clientY - 20) + 'px';
+    magnifier.style.left = (e.clientX - 210) + 'px';
+    magnifier.style.top = (e.clientY - 80) + 'px';
     
     // Calculate zoom offset - show 2x zoom
     const zoomLevel = 2;
-    const offsetX = -(relX * zoomLevel - 50);
-    const offsetY = -(relY * zoomLevel - 50);
+    const offsetX = -(relX * zoomLevel - 210);
+    const offsetY = -(relY * zoomLevel - 80);
     
     magnifierContent.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${zoomLevel})`;
     magnifierContent.style.transformOrigin = '0 0';
@@ -1405,7 +1619,7 @@ function resetNavigation() {
   state.goal = '';
   state.currentStep = 0;
   state.completedElements.clear();
-  state.actionHistory = [];
+  clearActionHistory();
   state.baseDomain = '';
   removeHighlights();
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg> Ready to help you navigate');
