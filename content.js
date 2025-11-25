@@ -10,7 +10,8 @@ let state = {
   baseDomain: new URL(window.location.href).hostname,
   isRecording: false,
   recognition: null,
-  shadowRoot: null
+  shadowRoot: null,
+  isHistoryCollapsed: false
 };
 
 state.isClickInterceptionActive = false;
@@ -548,6 +549,19 @@ function createUIShadowDOM() {
       flex-direction: column !important;
       gap: 12px !important;
       max-height: 220px !important;
+      transition: max-height 0.2s ease !important;
+    }
+
+    .history-section.collapsed {
+      max-height: 70px !important;
+    }
+
+    .history-section.collapsed .history-list {
+      display: none !important;
+    }
+
+    .history-section.collapsed .history-empty {
+      display: none !important;
     }
 
     .history-header {
@@ -572,6 +586,47 @@ function createUIShadowDOM() {
       border-radius: 999px !important;
       padding: 2px 8px !important;
       font-weight: 600 !important;
+    }
+
+    .history-controls {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+
+    .history-toggle {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+      padding: 4px 8px !important;
+      border-radius: 8px !important;
+      border: 1px solid transparent !important;
+      background: #f3f4f6 !important;
+      color: #4b5563 !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: background 0.15s ease, color 0.15s ease !important;
+    }
+
+    .history-toggle:hover {
+      background: #e5e7eb !important;
+      color: #111827 !important;
+    }
+
+    .history-toggle:focus {
+      outline: 2px solid #15803d !important;
+      outline-offset: 2px !important;
+    }
+
+    .history-toggle-icon {
+      width: 12px !important;
+      height: 12px !important;
+      transition: transform 0.2s ease !important;
+    }
+
+    .history-section.collapsed .history-toggle-icon {
+      transform: rotate(-90deg) !important;
     }
 
     .history-list {
@@ -726,7 +781,7 @@ function createUIShadowDOM() {
           </button>
         </div>
       </div>
-      <div class="history-section">
+      <div class="history-section" id="aiNavHistorySection">
         <div class="history-header">
           <div class="history-title">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -735,7 +790,21 @@ function createUIShadowDOM() {
             </svg>
             Instruction history
           </div>
-          <span class="history-count" id="aiNavHistoryCount">0</span>
+          <div class="history-controls">
+            <span class="history-count" id="aiNavHistoryCount">0</span>
+            <button 
+              class="history-toggle" 
+              id="aiNavHistoryToggleBtn" 
+              type="button" 
+              aria-expanded="true"
+              aria-controls="aiNavHistoryList"
+            >
+              <span id="aiNavHistoryToggleText">Hide</span>
+              <svg class="history-toggle-icon" id="aiNavHistoryToggleIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="history-list" id="aiNavHistoryList">
           <p class="history-empty">No instructions yet.</p>
@@ -755,6 +824,7 @@ function createUIShadowDOM() {
   `;
   shadowRoot.appendChild(container);
   renderActionHistory();
+  initHistoryToggle();
 
   console.log('[Content Script] UI created');
   setupEventListeners();
@@ -995,6 +1065,37 @@ function renderActionHistory() {
     .join('');
 
   list.innerHTML = items;
+  updateHistoryCollapseState();
+}
+
+function updateHistoryCollapseState() {
+  const section = getElementFromShadow('aiNavHistorySection');
+  const list = getElementFromShadow('aiNavHistoryList');
+  const toggleBtn = getElementFromShadow('aiNavHistoryToggleBtn');
+  const toggleText = getElementFromShadow('aiNavHistoryToggleText');
+
+  if (!section || !list || !toggleBtn) return;
+
+  section.classList.toggle('collapsed', state.isHistoryCollapsed);
+  list.style.display = state.isHistoryCollapsed ? 'none' : 'flex';
+  list.setAttribute('aria-hidden', state.isHistoryCollapsed ? 'true' : 'false');
+  toggleBtn.setAttribute('aria-expanded', (!state.isHistoryCollapsed).toString());
+
+  if (toggleText) {
+    toggleText.textContent = state.isHistoryCollapsed ? 'Show' : 'Hide';
+  }
+}
+
+function initHistoryToggle() {
+  const toggleBtn = getElementFromShadow('aiNavHistoryToggleBtn');
+  if (!toggleBtn) return;
+
+  toggleBtn.addEventListener('click', () => {
+    state.isHistoryCollapsed = !state.isHistoryCollapsed;
+    updateHistoryCollapseState();
+  });
+
+  updateHistoryCollapseState();
 }
 
 function clearActionHistory() {
