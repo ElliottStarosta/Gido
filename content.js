@@ -1411,7 +1411,7 @@ async function highlightNextElement() {
 
   const historyContext = buildHistoryContext();
 
-  const prompt = `You are an AI web navigation assistant helping a user accomplish a task. Think step-by-step like a human would navigate a website.
+  const prompt = `You are an AI web navigation assistant helping a user accomplish a task. Your PRIMARY JOB is to recognize when the goal has been achieved.
 
 USER'S GOAL: "${state.goal}"
 
@@ -1424,14 +1424,20 @@ ${historyContext}
 AVAILABLE ELEMENTS ON THIS PAGE:
 ${elementList}
 
-INSTRUCTIONS:
-1. Analyze the current page and available elements carefully
-2. Think about what a human would naturally do next to accomplish the goal
-3. You may need to navigate between different domains/pages to complete this goal
-4. If you need to search, look for search boxes, search buttons, or search icons
-5. If you need to find a category, look for navigation links or category buttons
-6. Choose the MOST RELEVANT element that moves closer to the goal
-7. If no element seems relevant, respond with "NONE" to indicate the goal may be complete or impossible
+CRITICAL INSTRUCTIONS:
+1. FIRST: Determine if the goal has been ACHIEVED. If the user wanted to navigate to a website and we are now ON that website, respond with "NONE".
+2. Check if the current page URL or page content matches the goal. If yes, respond with "NONE" immediately.
+3. Only if the goal is NOT achieved, find the next logical step.
+4. Think about what a human would naturally do next to accomplish the goal.
+5. You may need to navigate between different domains/pages to complete this goal.
+6. If you need to search, look for search boxes, search buttons, or search icons.
+7. Choose the MOST RELEVANT element that moves closer to the goal.
+8. If no element seems relevant OR the goal appears complete, respond with "NONE".
+
+GOAL COMPLETION EXAMPLES:
+- If goal is "navigate to the grade cs website" and current URL contains "gradecs" or "grade-cs", respond with NONE.
+- If goal is "go to google.com" and current URL is "google.com", respond with NONE.
+- If goal is "find the login page" and we are on the login page, respond with NONE.
 
 RESPONSE FORMAT (respond with ONLY this format):
 ELEMENT_ID: elem_X (or NONE if goal is complete/no relevant elements)
