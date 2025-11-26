@@ -11,7 +11,7 @@ let state = {
   isRecording: false,
   recognition: null,
   shadowRoot: null,
-  isHistoryCollapsed: false
+  isHistoryCollapsed: true
 };
 
 state.isClickInterceptionActive = false;
@@ -176,6 +176,7 @@ async function loadState() {
               gsap.to(panel, { scale: 1, opacity: 1, duration: 0.3 });
               panel.classList.add('open');
             }
+            updateEndJourneyButtonVisibility();
             updateStatus(`Resuming: ${state.goal}`);
           }, 100);
           if (document.readyState === 'complete') {
@@ -183,6 +184,11 @@ async function loadState() {
           } else {
             window.addEventListener('load', resumeNavigation, { once: true });
           }
+        } else {
+          // Ensure button is hidden if no active navigation
+          setTimeout(() => {
+            updateEndJourneyButtonVisibility();
+          }, 100);
         }
       }
     }
@@ -279,7 +285,30 @@ function completeGoal() {
   
   // Clear stored state when task is manually ended
   clearStoredState();
+  updateEndJourneyButtonVisibility();
   console.log('[Shortcut] Goal completed via Alt+Shift+E');
+}
+
+function endJourney() {
+  if (!state.isActive) {
+    updateStatus('No active navigation to end');
+    return;
+  }
+  
+  removeHighlights();
+  state.isActive = false;
+  state.goal = '';
+  state.currentStep = 0;
+  state.completedElements.clear();
+  clearActionHistory();
+  state.baseDomain = '';
+  
+  updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Journey ended successfully');
+  
+  // Clear stored state when task is manually ended
+  clearStoredState();
+  updateEndJourneyButtonVisibility();
+  console.log('[End Journey] Navigation terminated by user');
 }
 
 
@@ -716,6 +745,40 @@ function createUIShadowDOM() {
       animation: ai-spin 1s linear infinite !important;
     }
 
+    .end-journey-btn {
+      width: 100% !important;
+      padding: 12px 20px !important;
+      background: #dc2626 !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 10px !important;
+      font-size: 14px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 8px !important;
+      transition: all 0.2s ease !important;
+      margin-top: 12px !important;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2) !important;
+    }
+
+    .end-journey-btn:hover {
+      background: #b91c1c !important;
+      transform: translateY(-1px) !important;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3) !important;
+    }
+
+    .end-journey-btn:active {
+      transform: translateY(0) !important;
+      box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25) !important;
+    }
+
+    .end-journey-btn.hidden {
+      display: none !important;
+    }
+
     @keyframes ai-pulse {
       0%, 100% { opacity: 1 !important; }
       50% { opacity: 0.6 !important; }
@@ -796,10 +859,10 @@ function createUIShadowDOM() {
               class="history-toggle" 
               id="aiNavHistoryToggleBtn" 
               type="button" 
-              aria-expanded="true"
+              aria-expanded="false"
               aria-controls="aiNavHistoryList"
             >
-              <span id="aiNavHistoryToggleText">Hide</span>
+              <span id="aiNavHistoryToggleText">Show</span>
               <svg class="history-toggle-icon" id="aiNavHistoryToggleIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
@@ -811,13 +874,23 @@ function createUIShadowDOM() {
         </div>
       </div>
       <div class="status-box">
-        <div class="status-text" id="aiNavStatus">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-          Ready to help
+        <div style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+          <div class="status-text" id="aiNavStatus">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            Ready to help
+          </div>
+          <button class="end-journey-btn hidden" id="aiNavEndJourney">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            End Journey
+          </button>
         </div>
       </div>
     </div>
@@ -825,6 +898,7 @@ function createUIShadowDOM() {
   shadowRoot.appendChild(container);
   renderActionHistory();
   initHistoryToggle();
+  updateEndJourneyButtonVisibility();
 
   console.log('[Content Script] UI created');
   setupEventListeners();
@@ -949,6 +1023,66 @@ function injectPageStyles() {
       border-right: 8px solid transparent !important;
       pointer-events: none !important;
     }
+    
+    .journey-complete-notification {
+      position: fixed !important;
+      top: 20px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+      color: white !important;
+      padding: 16px 24px !important;
+      border-radius: 12px !important;
+      box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
+      z-index: 1000000 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      min-width: 320px !important;
+      max-width: 90vw !important;
+      animation: journey-complete-slide-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+      pointer-events: auto !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+      cursor: pointer !important;
+      transition: transform 0.2s ease !important;
+    }
+    
+    .journey-complete-notification:hover {
+      transform: translateX(-50%) translateY(-2px) !important;
+    }
+    
+    .journey-complete-notification.hidden {
+      display: none !important;
+    }
+    
+    .journey-complete-notification-icon {
+      width: 24px !important;
+      height: 24px !important;
+      flex-shrink: 0 !important;
+      animation: journey-complete-bounce 0.6s ease-out !important;
+    }
+    
+    @keyframes journey-complete-slide-in {
+      from {
+        opacity: 0 !important;
+        transform: translateX(-50%) translateY(-20px) scale(0.9) !important;
+      }
+      to {
+        opacity: 1 !important;
+        transform: translateX(-50%) translateY(0) scale(1) !important;
+      }
+    }
+    
+    @keyframes journey-complete-bounce {
+      0%, 100% {
+        transform: scale(1) !important;
+      }
+      50% {
+        transform: scale(1.2) !important;
+      }
+    }
   `;
   
   document.head.appendChild(style);
@@ -970,6 +1104,7 @@ function openPanel() {
     panel.classList.add('open');
     fab.classList.add('hidden');
   }
+  updateEndJourneyButtonVisibility();
   setTimeout(() => {
     getElementFromShadow('aiNavInput').focus();
   }, 300);
@@ -1003,6 +1138,7 @@ function setupEventListeners() {
     }
   });
   getElementFromShadow('aiNavMic').addEventListener('click', toggleSpeechRecognition);
+  getElementFromShadow('aiNavEndJourney').addEventListener('click', endJourney);
 }
 
 function setupTextareaAutoResize() {
@@ -1023,6 +1159,73 @@ function updateStatus(text, loading = false) {
       gsap.fromTo(status, { y: -5, opacity: 0.8 }, { y: 0, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' });
     }
   }
+}
+
+function updateEndJourneyButtonVisibility() {
+  const endJourneyBtn = getElementFromShadow('aiNavEndJourney');
+  if (endJourneyBtn) {
+    if (state.isActive) {
+      endJourneyBtn.classList.remove('hidden');
+    } else {
+      endJourneyBtn.classList.add('hidden');
+    }
+  }
+}
+
+function showJourneyCompleteNotification() {
+  // Remove any existing notification
+  const existingNotification = document.getElementById('journey-complete-notification');
+  if (existingNotification) {
+    existingNotification.remove();
+  }
+
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.id = 'journey-complete-notification';
+  notification.className = 'journey-complete-notification';
+  notification.innerHTML = `
+    <svg class="journey-complete-notification-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <div>
+      <div style="font-weight: 700; margin-bottom: 2px;">Journey Complete!</div>
+      <div style="font-size: 13px; font-weight: 400; opacity: 0.95;">You've reached your destination</div>
+    </div>
+  `;
+
+  document.body.appendChild(notification);
+
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    if (notification && notification.parentNode) {
+      if (window.gsap) {
+        gsap.to(notification, {
+          opacity: 0,
+          y: -20,
+          scale: 0.9,
+          duration: 0.3,
+          onComplete: () => notification.remove()
+        });
+      } else {
+        notification.remove();
+      }
+    }
+  }, 5000);
+
+  // Also add click to dismiss
+  notification.addEventListener('click', () => {
+    if (window.gsap) {
+      gsap.to(notification, {
+        opacity: 0,
+        y: -20,
+        scale: 0.9,
+        duration: 0.3,
+        onComplete: () => notification.remove()
+      });
+    } else {
+      notification.remove();
+    }
+  });
 }
 
 function renderActionHistory() {
@@ -1197,6 +1400,7 @@ async function startNavigation(goal) {
   state.currentPage = window.location.href;
   state.baseDomain = getDomain(window.location.href);
   await saveState();
+  updateEndJourneyButtonVisibility();
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> Planning your journey...', true);
   await highlightNextElement();
 }
@@ -1460,9 +1664,18 @@ REASONING: (one sentence explaining why this is the logical next step)`;
   const reasoningMatch = aiResponse.match(/REASONING:\s*(.+)/i);
 
   if (!elementMatch || elementMatch[1] === 'NONE') {
-    updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed successfully! Press Alt+Shift+E to end task.');
     state.isActive = false;
-    completeGoal();
+    removeHighlights();
+    showJourneyCompleteNotification();
+    updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Journey completed successfully!');
+    state.goal = '';
+    state.currentStep = 0;
+    state.completedElements.clear();
+    clearActionHistory();
+    state.baseDomain = '';
+    clearStoredState();
+    updateEndJourneyButtonVisibility();
+    console.log('[Journey Complete] AI detected destination reached');
     return;
   }
 
@@ -1729,6 +1942,7 @@ function resetNavigation() {
   clearActionHistory();
   state.baseDomain = '';
   removeHighlights();
+  updateEndJourneyButtonVisibility();
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg> Ready to help you navigate');
   clearStoredState();
 }
