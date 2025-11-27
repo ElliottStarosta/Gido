@@ -198,8 +198,21 @@ async function loadState() {
 }
 
 async function resumeNavigation() {
+  // Check if navigation is still active before resuming
+  if (!state.isActive) {
+    console.log('[Resume Navigation] Navigation no longer active, aborting resume');
+    return;
+  }
+  
   updateStatus(`Resuming (Step ${state.currentStep + 1}): ${state.goal}`);
   await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  // Check again after delay
+  if (!state.isActive) {
+    console.log('[Resume Navigation] Navigation ended during resume delay, aborting');
+    return;
+  }
+  
   await highlightNextElement();
 }
 
@@ -276,20 +289,46 @@ function completeGoal() {
     return;
   }
   
-  removeHighlights();
+  console.log('[Complete Goal] Completing navigation via keyboard shortcut...');
+  
+  // First, set isActive to false to stop any ongoing processes
   state.isActive = false;
+  
+  // Hide thinking indicator if it's showing
+  hideThinkingIndicator();
+  
+  // Remove all highlights and UI elements
+  removeHighlights();
+  
+  // Disable click interception if active
+  if (state.isClickInterceptionActive) {
+    disableClickInterception();
+  }
+  
+  // Stop speech recognition if active
+  if (state.isRecording && state.recognition) {
+    try {
+      state.recognition.stop();
+    } catch (e) {
+      console.warn('[Complete Goal] Error stopping speech recognition:', e);
+    }
+  }
+  
+  // Clear all state
   state.goal = '';
   state.currentStep = 0;
   state.completedElements.clear();
   clearActionHistory();
   state.baseDomain = '';
   
-  updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed with keyboard shortcut!');
-  
   // Clear stored state when task is manually ended
   clearStoredState();
+  
+  // Update UI
+  updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed with keyboard shortcut!');
   updateEndJourneyButtonVisibility();
-  console.log('[Shortcut] Goal completed via Alt+Shift+E');
+  
+  console.log('[Complete Goal] Navigation completed via Alt+Shift+E - all processes stopped');
 }
 
 function endJourney() {
@@ -298,20 +337,46 @@ function endJourney() {
     return;
   }
   
-  removeHighlights();
+  console.log('[End Journey] Terminating navigation...');
+  
+  // First, set isActive to false to stop any ongoing processes
   state.isActive = false;
+  
+  // Hide thinking indicator if it's showing
+  hideThinkingIndicator();
+  
+  // Remove all highlights and UI elements
+  removeHighlights();
+  
+  // Disable click interception if active
+  if (state.isClickInterceptionActive) {
+    disableClickInterception();
+  }
+  
+  // Stop speech recognition if active
+  if (state.isRecording && state.recognition) {
+    try {
+      state.recognition.stop();
+    } catch (e) {
+      console.warn('[End Journey] Error stopping speech recognition:', e);
+    }
+  }
+  
+  // Clear all state
   state.goal = '';
   state.currentStep = 0;
   state.completedElements.clear();
   clearActionHistory();
   state.baseDomain = '';
   
-  updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Journey ended successfully');
-  
   // Clear stored state when task is manually ended
   clearStoredState();
+  
+  // Update UI
+  updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Journey ended successfully');
   updateEndJourneyButtonVisibility();
-  console.log('[End Journey] Navigation terminated by user');
+  
+  console.log('[End Journey] Navigation terminated by user - all processes stopped');
 }
 
 
@@ -2337,9 +2402,24 @@ function updateTooltipColors() {
 }
 
 async function highlightNextElement() {
+  // Check if navigation is still active before proceeding
+  if (!state.isActive) {
+    console.log('[Highlight Next Element] Navigation no longer active, aborting');
+    hideThinkingIndicator();
+    return;
+  }
+  
   showThinkingIndicator();
   
   const elements = await getPageElements();
+  
+  // Check again after async operation
+  if (!state.isActive) {
+    console.log('[Highlight Next Element] Navigation ended during element gathering, aborting');
+    hideThinkingIndicator();
+    return;
+  }
+  
   const pageUrl = window.location.href;
   const availableElements = elements.filter(e => !state.completedElements.has(e.id));
   
@@ -2395,6 +2475,12 @@ REASONING: (one sentence explaining why this is the logical next step)`;
   const aiResponse = await callAPI(prompt);
   
   hideThinkingIndicator();
+  
+  // Check if navigation is still active after API call
+  if (!state.isActive) {
+    console.log('[Highlight Next Element] Navigation ended during API call, aborting');
+    return;
+  }
   
   if (!aiResponse) {
     updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg> Error getting AI response');
@@ -2659,6 +2745,12 @@ function removeHighlights() {
 }
 
 async function onElementInteraction(e) {
+  // Check if navigation is still active
+  if (!state.isActive) {
+    console.log('[Element Interaction] Navigation no longer active, ignoring interaction');
+    return;
+  }
+  
   console.log('[Element Interaction]', e.type);
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> Processing...', true);
   
@@ -2669,6 +2761,12 @@ async function onElementInteraction(e) {
   
   const waitTime = e.type === 'input' || e.type === 'keydown' ? 2500 : 1500;
   await new Promise(resolve => setTimeout(resolve, waitTime));
+  
+  // Check again after wait time
+  if (!state.isActive) {
+    console.log('[Element Interaction] Navigation ended during wait, aborting');
+    return;
+  }
   
   const afterUrl = window.location.href;
   const afterDomain = getDomain(afterUrl);
