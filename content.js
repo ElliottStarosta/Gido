@@ -1299,7 +1299,7 @@ function setupPanelMagnifier() {
   // Show magnifier when hovering over panel text - hold 1.5 seconds
   panel.addEventListener('mouseover', (e) => {
     const target = e.target;
-    if (!target || target.tagName === 'BUTTON' || target.tagName === 'SVG') return;
+    if (!target || target.tagName === 'BUTTON' || target.tagName === 'SVG' || target === input) return;
 
     const text = target.textContent || '';
     if (!text || text.trim().length < 2) return;
@@ -1307,7 +1307,7 @@ function setupPanelMagnifier() {
     if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
 
     magnifier.hoverTimeout = setTimeout(() => {
-      if (!target.textContent) return;
+      if (!target.textContent || !document.contains(target)) return;
       
       magnifier.currentTarget = target;
       content.textContent = target.textContent.trim();
@@ -1319,13 +1319,6 @@ function setupPanelMagnifier() {
       magnifierDiv.classList.add('active');
       document.body.classList.add('magnifier-active');
       
-      // Position magnifier centered on cursor
-      const magnifierHeight = 180;
-      const magnifierWidth = 280;
-      let left = magnifier.element.style.left || window.innerWidth / 2 - magnifierWidth / 2;
-      let top = magnifier.element.style.top || window.innerHeight / 2 - magnifierHeight / 2;
-      magnifierDiv.style.left = left + 'px';
-      magnifierDiv.style.top = top + 'px';
       updateMagnifierPosition(e.clientX, e.clientY);
     }, 1500);
   }, true);
@@ -1359,23 +1352,7 @@ function setupPanelMagnifier() {
       return;
     }
     
-    // Position magnifier centered on cursor
-    const magnifierHeight = 180;
-    const magnifierWidth = 280;
-    let left = e.clientX - magnifierWidth / 2;
-    let top = e.clientY - magnifierHeight / 2;
-
-    if (left < 10) left = 10;
-    if (left + magnifierWidth > window.innerWidth - 10) {
-      left = window.innerWidth - magnifierWidth - 10;
-    }
-    if (top < 10) top = 10;
-    if (top + magnifierHeight > window.innerHeight - 10) {
-      top = window.innerHeight - magnifierHeight - 10;
-    }
-
-    magnifierDiv.style.left = left + 'px';
-    magnifierDiv.style.top = top + 'px';
+    updateMagnifierPosition(e.clientX, e.clientY);
   }, true);
 
   // Show magnifier when hovering over history - hold 1.5 seconds
@@ -1389,6 +1366,8 @@ function setupPanelMagnifier() {
     if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
 
     magnifier.hoverTimeout = setTimeout(() => {
+      if (!document.contains(historyItem)) return;
+      
       magnifier.currentTarget = historyItem;
       content.textContent = historyItem.textContent.trim();
       content.style.fontSize = '22px';
@@ -1416,23 +1395,7 @@ function setupPanelMagnifier() {
       return;
     }
     
-    // Position magnifier centered on cursor
-    const magnifierHeight = 180;
-    const magnifierWidth = 280;
-    let left = e.clientX - magnifierWidth / 2;
-    let top = e.clientY - magnifierHeight / 2;
-
-    if (left < 10) left = 10;
-    if (left + magnifierWidth > window.innerWidth - 10) {
-      left = window.innerWidth - magnifierWidth - 10;
-    }
-    if (top < 10) top = 10;
-    if (top + magnifierHeight > window.innerHeight - 10) {
-      top = window.innerHeight - magnifierHeight - 10;
-    }
-
-    magnifierDiv.style.left = left + 'px';
-    magnifierDiv.style.top = top + 'px';
+    updateMagnifierPosition(e.clientX, e.clientY);
   }, true);
 
   historyList.addEventListener('mouseout', () => {
@@ -1442,69 +1405,6 @@ function setupPanelMagnifier() {
     magnifierDiv.classList.remove('active');
     document.body.classList.remove('magnifier-active');
   }, true);
-
-  // Input field: hold 1.5 seconds to show, stays while cursor is in input
-  let isMouseOverInput = false;
-
-  input.addEventListener('mouseenter', () => {
-    isMouseOverInput = true;
-    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
-
-    magnifier.hoverTimeout = setTimeout(() => {
-      if (!isMouseOverInput) return; // Check if still over input
-      
-      magnifier.currentTarget = input;
-      const text = input.value || '';
-      content.textContent = text || 'Type here...';
-      content.style.fontSize = '28px';
-      content.style.fontWeight = '700';
-      content.style.color = '#1f2937';
-
-      magnifier.isActive = true;
-      magnifierDiv.classList.add('active');
-      document.body.classList.add('magnifier-active');
-    }, 1500);
-  });
-
-  input.addEventListener('mouseleave', () => {
-    isMouseOverInput = false;
-    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
-    magnifier.isActive = false;
-    magnifier.currentTarget = null;
-    magnifierDiv.classList.remove('active');
-    document.body.classList.remove('magnifier-active');
-  });
-
-  input.addEventListener('mousemove', (e) => {
-    if (!magnifier.isActive || !isMouseOverInput) return;
-    
-    const text = input.value || '';
-    content.textContent = text || 'Type here...';
-    
-    const magnifierHeight = 180;
-    const magnifierWidth = 280;
-    let left = e.clientX - magnifierWidth / 2;
-    let top = e.clientY - magnifierHeight / 2;
-
-    if (left < 10) left = 10;
-    if (left + magnifierWidth > window.innerWidth - 10) {
-      left = window.innerWidth - magnifierWidth - 10;
-    }
-    if (top < 10) top = 10;
-    if (top + magnifierHeight > window.innerHeight - 10) {
-      top = window.innerHeight - magnifierHeight - 10;
-    }
-
-    magnifierDiv.style.left = left + 'px';
-    magnifierDiv.style.top = top + 'px';
-  });
-
-  input.addEventListener('input', () => {
-    if (!magnifier.isActive || !isMouseOverInput) return;
-    
-    const text = input.value || '';
-    content.textContent = text || 'Type here...';
-  });
 
   function updateMagnifierPosition(cursorX, cursorY) {
     const magnifierHeight = 180;
@@ -1529,7 +1429,255 @@ function setupPanelMagnifier() {
   }
 }
 
+function setupTypingMagnifier() {
+  // Create styles for the typing magnifier
+  const style = document.createElement('style');
+  style.id = 'ai-typing-magnifier-styles';
+  style.textContent = `
+    .ai-typing-magnifier {
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      width: 600px !important;
+      height: 120px !important;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+      border: 3px solid #15803d !important;
+      border-radius: 16px !important;
+      box-shadow: 
+        0 0 0 2px #15803d,
+        inset 0 0 20px rgba(21, 128, 61, 0.08),
+        0 20px 40px rgba(0, 0, 0, 0.15) !important;
+      z-index: 1000002 !important;
+      pointer-events: none !important;
+      display: none !important;
+      opacity: 0 !important;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+      overflow: hidden !important;
+    }
 
+    .ai-typing-magnifier.active {
+      display: block !important;
+      opacity: 1 !important;
+      transform: translate(-50%, -50%) scale(1) !important;
+    }
+
+    .ai-typing-magnifier-content {
+      position: absolute !important;
+      width: 100% !important;
+      height: 100% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 20px !important;
+      box-sizing: border-box !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+      font-size: 32px !important;
+      font-weight: 600 !important;
+      color: #1f2937 !important;
+      line-height: 1.4 !important;
+      text-align: center !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      overflow: hidden !important;
+    }
+
+    .ai-typing-magnifier-label {
+      position: absolute !important;
+      top: 12px !important;
+      right: 16px !important;
+      background: rgba(21, 128, 61, 0.9) !important;
+      color: white !important;
+      padding: 4px 10px !important;
+      border-radius: 6px !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.8px !important;
+      text-transform: uppercase !important;
+      pointer-events: none !important;
+    }
+
+    .ai-typing-magnifier-cursor {
+      display: inline-block !important;
+      width: 2px !important;
+      height: 1.2em !important;
+      background: #15803d !important;
+      margin-left: 2px !important;
+      animation: ai-typing-cursor-blink 1s infinite !important;
+    }
+
+    @keyframes ai-typing-cursor-blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .ai-typing-magnifier-placeholder {
+      color: #9ca3af !important;
+      font-style: italic !important;
+    }
+
+    @media (max-width: 700px) {
+      .ai-typing-magnifier {
+        width: 90vw !important;
+        height: 100px !important;
+      }
+      
+      .ai-typing-magnifier-content {
+        font-size: 24px !important;
+        padding: 16px !important;
+      }
+    }
+  `;
+  
+  // Remove old style if exists
+  const oldStyle = document.getElementById('ai-typing-magnifier-styles');
+  if (oldStyle) oldStyle.remove();
+  
+  document.head.appendChild(style);
+
+  // Create magnifier HTML
+  const magnifierDiv = document.createElement('div');
+  magnifierDiv.className = 'ai-typing-magnifier';
+  magnifierDiv.id = 'ai-typing-magnifier';
+
+  const content = document.createElement('div');
+  content.className = 'ai-typing-magnifier-content';
+  content.id = 'ai-typing-magnifier-content';
+
+  const label = document.createElement('div');
+  label.className = 'ai-typing-magnifier-label';
+  label.textContent = 'TYPING VIEW';
+
+  magnifierDiv.appendChild(content);
+  magnifierDiv.appendChild(label);
+  document.body.appendChild(magnifierDiv);
+
+  const typingMagnifier = {
+    element: magnifierDiv,
+    content: content,
+    isActive: false,
+    typingTimeout: null,
+    lastValue: ''
+  };
+
+  // Get input element from shadow root
+  const input = getElementFromShadow('aiNavInput');
+  
+  if (!input) {
+    console.warn('[Typing Magnifier] Could not find input element');
+    return;
+  }
+
+  // Show magnifier when user starts typing
+  input.addEventListener('input', (e) => {
+    const currentValue = e.target.value;
+    
+    // Clear existing timeout
+    if (typingMagnifier.typingTimeout) {
+      clearTimeout(typingMagnifier.typingTimeout);
+    }
+
+    // Show magnifier if user is typing
+    if (currentValue.length > 0) {
+      if (!typingMagnifier.isActive) {
+        typingMagnifier.isActive = true;
+        magnifierDiv.classList.add('active');
+        console.log('[Typing Magnifier] Activated');
+      }
+      
+      // Update content with typing cursor
+      updateTypingContent(currentValue);
+      
+      // Hide magnifier after 3 seconds of no typing
+      typingMagnifier.typingTimeout = setTimeout(() => {
+        hideTypingMagnifier();
+      }, 3000);
+    } else {
+      // Hide immediately if input is empty
+      hideTypingMagnifier();
+    }
+    
+    typingMagnifier.lastValue = currentValue;
+  });
+
+  // Also show magnifier when user focuses on input and starts typing
+  input.addEventListener('focus', () => {
+    if (input.value.length > 0) {
+      if (!typingMagnifier.isActive) {
+        typingMagnifier.isActive = true;
+        magnifierDiv.classList.add('active');
+        updateTypingContent(input.value);
+        console.log('[Typing Magnifier] Activated on focus');
+      }
+    }
+  });
+
+  // Hide magnifier when input loses focus (after a delay)
+  input.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (!input.matches(':focus')) {
+        hideTypingMagnifier();
+      }
+    }, 500);
+  });
+
+  // Handle keydown events for immediate response
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      hideTypingMagnifier();
+      return;
+    }
+    
+    // Show magnifier immediately when user starts typing (before input event)
+    if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
+      const currentValue = input.value;
+      
+      // Predict what the value will be after this keypress
+      let futureValue = currentValue;
+      if (e.key === 'Backspace') {
+        futureValue = currentValue.slice(0, -1);
+      } else if (e.key === 'Delete') {
+        // Handle delete key
+        futureValue = currentValue;
+      } else if (e.key.length === 1) {
+        futureValue = currentValue + e.key;
+      }
+      
+      if (futureValue.length > 0 && !typingMagnifier.isActive) {
+        typingMagnifier.isActive = true;
+        magnifierDiv.classList.add('active');
+        console.log('[Typing Magnifier] Activated on keydown');
+      }
+    }
+  });
+
+  function updateTypingContent(text) {
+    if (text.trim().length === 0) {
+      content.innerHTML = '<span class="ai-typing-magnifier-placeholder">Start typing your instruction...</span>';
+    } else {
+      // Show text with blinking cursor
+      content.innerHTML = `${escapeHtml(text)}<span class="ai-typing-magnifier-cursor"></span>`;
+    }
+  }
+
+  function hideTypingMagnifier() {
+    if (typingMagnifier.isActive) {
+      typingMagnifier.isActive = false;
+      magnifierDiv.classList.remove('active');
+      console.log('[Typing Magnifier] Deactivated');
+    }
+    
+    if (typingMagnifier.typingTimeout) {
+      clearTimeout(typingMagnifier.typingTimeout);
+      typingMagnifier.typingTimeout = null;
+    }
+  }
+
+  // Initialize with placeholder
+  updateTypingContent('');
+  
+  console.log('[Typing Magnifier] Setup complete');
+}
 
 function injectThinkingIndicatorStyles() {
   if (document.getElementById('ai-thinking-styles')) return;
@@ -1731,6 +1879,7 @@ function setupEventListeners() {
   getElementFromShadow('aiNavMic').addEventListener('click', toggleSpeechRecognition);
   getElementFromShadow('aiNavEndJourney').addEventListener('click', endJourney);
   setupPanelMagnifier();
+  setupTypingMagnifier();
 }
 
 function setupTextareaAutoResize() {
