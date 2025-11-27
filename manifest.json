@@ -29,6 +29,11 @@
   "background": {
     "service_worker": "background.js"
   },
+  "icons": {
+    "16": "icons/gido.png",
+    "48": "icons/gido.png",
+    "128": "icons/gido.png"
+  },
   "action": {
     "default_popup": "popup.html"
   },
