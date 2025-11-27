@@ -241,6 +241,8 @@ function getElementFromShadow(id) {
 async function initUI() {
   await loadGSAP();
   await loadState();
+  injectThinkingIndicatorStyles();
+  createThinkingIndicator();
   createUIShadowDOM();
   injectPageStyles();
   updateTooltipColors();
@@ -248,6 +250,7 @@ async function initUI() {
   document.addEventListener('keydown', handleKeyboardShortcuts);
   console.log('[Content Script] UI initialized');
 }
+
 
 function handleKeyboardShortcuts(e) {
   // Alt + Shift + E: Complete goal and stop navigation
@@ -535,7 +538,7 @@ function createUIShadowDOM() {
     }
 
     .icon-btn.recording {
-      color: #dc2626 !important;
+      color: #04720dff !important;
       animation: ai-pulse 1.5s ease-in-out infinite !important;
     }
 
@@ -748,7 +751,7 @@ function createUIShadowDOM() {
     .end-journey-btn {
       width: 100% !important;
       padding: 12px 20px !important;
-      background: #dc2626 !important;
+      background: #016b17ff !important;
       color: white !important;
       border: none !important;
       border-radius: 10px !important;
@@ -971,6 +974,7 @@ function injectPageStyles() {
     .ai-nav-tooltip-magnifier.active {
       display: block !important;
       cursor: none !important;
+      caret-color: transparent !important;
     }
     
     .ai-nav-tooltip-magnifier-content {
@@ -1083,11 +1087,598 @@ function injectPageStyles() {
         transform: scale(1.2) !important;
       }
     }
+
+    .ai-thinking-indicator {
+      position: fixed !important;
+      top: 30px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
+      color: white !important;
+      padding: 14px 24px !important;
+      border-radius: 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+      z-index: 999998 !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+      font-size: 14px !important;
+      font-weight: 600 !important;
+      box-shadow: 
+        0 8px 32px rgba(102, 126, 234, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+      border: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transition: opacity 0.3s ease !important;
+      animation: ai-thinking-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    }
+
+    .ai-thinking-indicator.hidden {
+      display: none !important;
+    }
+
+    .ai-thinking-indicator.show {
+      opacity: 1 !important;
+    }
+
+    .ai-thinking-icon {
+      width: 20px !important;
+      height: 20px !important;
+      display: inline-block !important;
+      animation: ai-thinking-spin 2s linear infinite !important;
+      flex-shrink: 0 !important;
+    }
+
+    @keyframes ai-thinking-spin {
+      from {
+        transform: rotate(0deg) !important;
+      }
+      to {
+        transform: rotate(360deg) !important;
+      }
+    }
+
+    @keyframes ai-thinking-slide-in {
+      from {
+        opacity: 0 !important;
+        transform: translateX(-50%) translateY(-20px) scale(0.9) !important;
+      }
+      to {
+        opacity: 1 !important;
+        transform: translateX(-50%) translateY(0) scale(1) !important;
+      }
+    }
   `;
   
   document.head.appendChild(style);
   console.log('[Page Styles] Injected highlight and tooltip styles');
 }
+
+
+
+function setupPanelMagnifier() {
+  const shadowRoot = state.shadowRoot;
+  if (!shadowRoot) return;
+
+  // Create magnifier styles IN THE SHADOW ROOT
+  const style = document.createElement('style');
+  style.textContent = `
+    .ai-nav-panel-magnifier {
+      position: fixed !important;
+      width: 280px !important;
+      height: 180px !important;
+      border: 3px solid #15803d !important;
+      border-radius: 12px !important;
+      background: white !important;
+      z-index: 1000001 !important;
+      pointer-events: none !important;
+      display: none !important;
+      box-shadow: 
+        0 0 0 2px #15803d,
+        inset 0 0 15px rgba(21, 128, 61, 0.1),
+        0 12px 24px rgba(0, 0, 0, 0.25) !important;
+      overflow: hidden !important;
+      opacity: 0 !important;
+      transition: opacity 0.15s ease !important;
+      cursor: none !important;
+    }
+
+    .ai-nav-panel-magnifier.active {
+      display: block !important;
+      opacity: 1 !important;
+      cursor: none !important;
+    }
+
+    .ai-nav-panel-magnifier-content {
+      position: absolute !important;
+      width: 100% !important;
+      height: 100% !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+      font-size: 24px !important;
+      line-height: 1.6 !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+      color: #1f2937 !important;
+      padding: 12px !important;
+      box-sizing: border-box !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+    }
+
+    .ai-nav-panel-magnifier-label {
+      position: absolute !important;
+      top: 8px !important;
+      right: 8px !important;
+      background: rgba(21, 128, 61, 0.9) !important;
+      color: white !important;
+      padding: 3px 8px !important;
+      border-radius: 4px !important;
+      font-size: 10px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.5px !important;
+      pointer-events: none !important;
+    }
+
+    .ai-nav-panel-magnifier-reticle {
+      position: absolute !important;
+      width: 3px !important;
+      height: 3px !important;
+      background: rgba(21, 128, 61, 0.7) !important;
+      border-radius: 50% !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      pointer-events: none !important;
+    }
+  `;
+  shadowRoot.appendChild(style);
+
+  // Create magnifier HTML IN THE SHADOW ROOT
+  const magnifierDiv = document.createElement('div');
+  magnifierDiv.className = 'ai-nav-panel-magnifier';
+  magnifierDiv.id = 'ai-nav-panel-magnifier';
+
+  const content = document.createElement('div');
+  content.className = 'ai-nav-panel-magnifier-content';
+  content.id = 'ai-nav-panel-magnifier-content';
+
+  const label = document.createElement('div');
+  label.className = 'ai-nav-panel-magnifier-label';
+  label.textContent = '2x ZOOM';
+
+  const reticle = document.createElement('div');
+  reticle.className = 'ai-nav-panel-magnifier-reticle';
+
+  magnifierDiv.appendChild(content);
+  magnifierDiv.appendChild(label);
+  magnifierDiv.appendChild(reticle);
+  shadowRoot.appendChild(magnifierDiv);
+
+  // Hide cursor when magnifier is active
+  const cursorHideStyle = document.createElement('style');
+  cursorHideStyle.textContent = `
+    body.magnifier-active,
+    body.magnifier-active * {
+      cursor: none !important;
+    }
+    body.magnifier-active input,
+    body.magnifier-active textarea,
+    body.magnifier-active input:focus,
+    body.magnifier-active textarea:focus {
+      caret-color: transparent !important;
+      cursor: none !important;
+    }
+  `;
+  document.head.appendChild(cursorHideStyle);
+
+  const magnifier = {
+    element: magnifierDiv,
+    content: content,
+    isActive: false,
+    hoverTimeout: null,
+    currentTarget: null
+  };
+
+  // Get panel elements from shadow root
+  const panel = getElementFromShadow('aiNavPanel');
+  const input = getElementFromShadow('aiNavInput');
+  const historyList = getElementFromShadow('aiNavHistoryList');
+
+  if (!panel || !input || !historyList) {
+    console.warn('[Panel Magnifier] Could not find panel elements');
+    return;
+  }
+
+  // Show magnifier when hovering over panel text - hold 1.5 seconds
+  panel.addEventListener('mouseover', (e) => {
+    const target = e.target;
+    if (!target || target.tagName === 'BUTTON' || target.tagName === 'SVG') return;
+
+    const text = target.textContent || '';
+    if (!text || text.trim().length < 2) return;
+
+    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+
+    magnifier.hoverTimeout = setTimeout(() => {
+      if (!target.textContent) return;
+      
+      magnifier.currentTarget = target;
+      content.textContent = target.textContent.trim();
+      content.style.fontSize = '24px';
+      content.style.fontWeight = window.getComputedStyle(target).fontWeight || '600';
+      content.style.color = window.getComputedStyle(target).color || '#1f2937';
+
+      magnifier.isActive = true;
+      magnifierDiv.classList.add('active');
+      document.body.classList.add('magnifier-active');
+      
+      // Position magnifier centered on cursor
+      const magnifierHeight = 180;
+      const magnifierWidth = 280;
+      let left = magnifier.element.style.left || window.innerWidth / 2 - magnifierWidth / 2;
+      let top = magnifier.element.style.top || window.innerHeight / 2 - magnifierHeight / 2;
+      magnifierDiv.style.left = left + 'px';
+      magnifierDiv.style.top = top + 'px';
+      updateMagnifierPosition(e.clientX, e.clientY);
+    }, 1500);
+  }, true);
+
+  // Hide magnifier when leaving panel or the specific element
+  panel.addEventListener('mouseout', (e) => {
+    const target = e.target;
+    
+    // Only hide if we're actually leaving the element that triggered it
+    if (magnifier.currentTarget === target || magnifier.currentTarget?.contains(target)) {
+      if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+      magnifier.isActive = false;
+      magnifier.currentTarget = null;
+      magnifierDiv.classList.remove('active');
+      document.body.classList.remove('magnifier-active');
+    }
+  }, true);
+
+  // Follow mouse while magnifier is active - zoom over cursor position
+  panel.addEventListener('mousemove', (e) => {
+    if (!magnifier.isActive || !magnifier.currentTarget) return;
+    
+    // Check if still over the same element
+    if (!magnifier.currentTarget.contains(e.target) && magnifier.currentTarget !== e.target) {
+      // Left the element, hide magnifier
+      magnifier.isActive = false;
+      magnifier.currentTarget = null;
+      magnifierDiv.classList.remove('active');
+      document.body.classList.remove('magnifier-active');
+      if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+      return;
+    }
+    
+    // Position magnifier centered on cursor
+    const magnifierHeight = 180;
+    const magnifierWidth = 280;
+    let left = e.clientX - magnifierWidth / 2;
+    let top = e.clientY - magnifierHeight / 2;
+
+    if (left < 10) left = 10;
+    if (left + magnifierWidth > window.innerWidth - 10) {
+      left = window.innerWidth - magnifierWidth - 10;
+    }
+    if (top < 10) top = 10;
+    if (top + magnifierHeight > window.innerHeight - 10) {
+      top = window.innerHeight - magnifierHeight - 10;
+    }
+
+    magnifierDiv.style.left = left + 'px';
+    magnifierDiv.style.top = top + 'px';
+  }, true);
+
+  // Show magnifier when hovering over history - hold 1.5 seconds
+  historyList.addEventListener('mouseover', (e) => {
+    const historyItem = e.target.closest('.history-item');
+    if (!historyItem) return;
+
+    const text = historyItem.textContent || '';
+    if (!text || text.trim().length < 2) return;
+
+    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+
+    magnifier.hoverTimeout = setTimeout(() => {
+      magnifier.currentTarget = historyItem;
+      content.textContent = historyItem.textContent.trim();
+      content.style.fontSize = '22px';
+      content.style.fontWeight = '600';
+      content.style.color = '#1f2937';
+
+      magnifier.isActive = true;
+      magnifierDiv.classList.add('active');
+      document.body.classList.add('magnifier-active');
+      updateMagnifierPosition(e.clientX, e.clientY);
+    }, 1500);
+  }, true);
+
+  // Follow mouse in history
+  historyList.addEventListener('mousemove', (e) => {
+    if (!magnifier.isActive || !magnifier.currentTarget) return;
+    
+    const historyItem = e.target.closest('.history-item');
+    if (historyItem !== magnifier.currentTarget) {
+      magnifier.isActive = false;
+      magnifier.currentTarget = null;
+      magnifierDiv.classList.remove('active');
+      document.body.classList.remove('magnifier-active');
+      if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+      return;
+    }
+    
+    // Position magnifier centered on cursor
+    const magnifierHeight = 180;
+    const magnifierWidth = 280;
+    let left = e.clientX - magnifierWidth / 2;
+    let top = e.clientY - magnifierHeight / 2;
+
+    if (left < 10) left = 10;
+    if (left + magnifierWidth > window.innerWidth - 10) {
+      left = window.innerWidth - magnifierWidth - 10;
+    }
+    if (top < 10) top = 10;
+    if (top + magnifierHeight > window.innerHeight - 10) {
+      top = window.innerHeight - magnifierHeight - 10;
+    }
+
+    magnifierDiv.style.left = left + 'px';
+    magnifierDiv.style.top = top + 'px';
+  }, true);
+
+  historyList.addEventListener('mouseout', () => {
+    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+    magnifier.isActive = false;
+    magnifier.currentTarget = null;
+    magnifierDiv.classList.remove('active');
+    document.body.classList.remove('magnifier-active');
+  }, true);
+
+  // Input field: hold 1.5 seconds to show, stays while cursor is in input
+  let isMouseOverInput = false;
+
+  input.addEventListener('mouseenter', () => {
+    isMouseOverInput = true;
+    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+
+    magnifier.hoverTimeout = setTimeout(() => {
+      if (!isMouseOverInput) return; // Check if still over input
+      
+      magnifier.currentTarget = input;
+      const text = input.value || '';
+      content.textContent = text || 'Type here...';
+      content.style.fontSize = '28px';
+      content.style.fontWeight = '700';
+      content.style.color = '#1f2937';
+
+      magnifier.isActive = true;
+      magnifierDiv.classList.add('active');
+      document.body.classList.add('magnifier-active');
+    }, 1500);
+  });
+
+  input.addEventListener('mouseleave', () => {
+    isMouseOverInput = false;
+    if (magnifier.hoverTimeout) clearTimeout(magnifier.hoverTimeout);
+    magnifier.isActive = false;
+    magnifier.currentTarget = null;
+    magnifierDiv.classList.remove('active');
+    document.body.classList.remove('magnifier-active');
+  });
+
+  input.addEventListener('mousemove', (e) => {
+    if (!magnifier.isActive || !isMouseOverInput) return;
+    
+    const text = input.value || '';
+    content.textContent = text || 'Type here...';
+    
+    const magnifierHeight = 180;
+    const magnifierWidth = 280;
+    let left = e.clientX - magnifierWidth / 2;
+    let top = e.clientY - magnifierHeight / 2;
+
+    if (left < 10) left = 10;
+    if (left + magnifierWidth > window.innerWidth - 10) {
+      left = window.innerWidth - magnifierWidth - 10;
+    }
+    if (top < 10) top = 10;
+    if (top + magnifierHeight > window.innerHeight - 10) {
+      top = window.innerHeight - magnifierHeight - 10;
+    }
+
+    magnifierDiv.style.left = left + 'px';
+    magnifierDiv.style.top = top + 'px';
+  });
+
+  input.addEventListener('input', () => {
+    if (!magnifier.isActive || !isMouseOverInput) return;
+    
+    const text = input.value || '';
+    content.textContent = text || 'Type here...';
+  });
+
+  function updateMagnifierPosition(cursorX, cursorY) {
+    const magnifierHeight = 180;
+    const magnifierWidth = 280;
+
+    // Center magnifier on cursor
+    let left = cursorX - magnifierWidth / 2;
+    let top = cursorY - magnifierHeight / 2;
+
+    // Keep within viewport with padding
+    if (left < 10) left = 10;
+    if (left + magnifierWidth > window.innerWidth - 10) {
+      left = window.innerWidth - magnifierWidth - 10;
+    }
+    if (top < 10) top = 10;
+    if (top + magnifierHeight > window.innerHeight - 10) {
+      top = window.innerHeight - magnifierHeight - 10;
+    }
+
+    magnifierDiv.style.left = left + 'px';
+    magnifierDiv.style.top = top + 'px';
+  }
+}
+
+
+
+function injectThinkingIndicatorStyles() {
+  if (document.getElementById('ai-thinking-styles')) return;
+  
+  const style = document.createElement('style');
+  style.id = 'ai-thinking-styles';
+  style.textContent = `
+    @keyframes scale-in {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    @keyframes l21 {
+      50%  {box-shadow: 19px 0 0 3px, 38px 0 0 7px, 57px 0 0 3px}
+      100% {box-shadow: 19px 0 0 0, 38px 0 0 3px, 57px 0 0 7px}
+    }
+
+    @keyframes pulse-opacity {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .ai-thinking-indicator {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #15803d 0%, #10b981 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      color: white;
+      padding: 80px 50px 50px 50px;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+      z-index: 999998;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      box-shadow: 0 25px 80px rgba(21, 128, 61, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+      border: 2.5px solid rgba(255, 255, 255, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      animation: scale-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      width: 350px;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .ai-thinking-indicator.hidden {
+      display: none !important;
+    }
+
+    .ai-thinking-indicator.show {
+      opacity: 1;
+    }
+
+    .ai-thinking-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+    }
+
+    .loading-dots {
+      color: #ffffff;
+      width: 4px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      box-shadow: 19px 0 0 7px, 38px 0 0 3px, 57px 0 0 0;
+      transform: translateX(-38px);
+      animation: l21 0.5s infinite alternate linear;
+    }
+
+    .gido-thinking-text {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+      margin: 0;
+      letter-spacing: 0.5px;
+      animation: pulse-opacity 2s ease-in-out infinite;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 600px) {
+      .ai-thinking-indicator {
+        padding: 40px 50px;
+        min-width: 90vw;
+      }
+
+      .gido-thinking-text {
+        font-size: 24px;
+      }
+
+      .factory-loader {
+        width: 70px;
+        height: 12px;
+      }
+    }
+  `;
+  
+  document.head.appendChild(style);
+  console.log('[Thinking Indicator Styles] Injected');
+}
+
+
+function createThinkingIndicator() {
+  if (document.getElementById('ai-thinking-indicator')) {
+    return;
+  }
+
+  const indicator = document.createElement('div');
+  indicator.id = 'ai-thinking-indicator';
+  indicator.className = 'ai-thinking-indicator hidden';
+  indicator.innerHTML = `
+    <div class="ai-thinking-container">
+      <div class="loading-dots"></div>
+      <div class="gido-thinking-text">GIDO IS THINKING</div>
+    </div>
+  `;
+  
+  document.body.appendChild(indicator);
+  console.log('[Thinking Indicator] Created');
+}
+
+
+// Show the thinking indicator
+function showThinkingIndicator() {
+  const indicator = document.getElementById('ai-thinking-indicator');
+  if (indicator) {
+    indicator.classList.remove('hidden');
+    setTimeout(() => {
+      indicator.classList.add('show');
+    }, 10);
+  }
+}
+
+// Hide the thinking indicator
+function hideThinkingIndicator() {
+  const indicator = document.getElementById('ai-thinking-indicator');
+  if (indicator) {
+    indicator.classList.remove('show');
+    setTimeout(() => {
+      indicator.classList.add('hidden');
+    }, 300);
+  }
+}
+
 
 function openPanel() {
   const panel = getElementFromShadow('aiNavPanel');
@@ -1139,6 +1730,7 @@ function setupEventListeners() {
   });
   getElementFromShadow('aiNavMic').addEventListener('click', toggleSpeechRecognition);
   getElementFromShadow('aiNavEndJourney').addEventListener('click', endJourney);
+  setupPanelMagnifier();
 }
 
 function setupTextareaAutoResize() {
@@ -1596,6 +2188,8 @@ function updateTooltipColors() {
 }
 
 async function highlightNextElement() {
+  showThinkingIndicator();
+  
   const elements = await getPageElements();
   const pageUrl = window.location.href;
   const availableElements = elements.filter(e => !state.completedElements.has(e.id));
@@ -1650,6 +2244,8 @@ INSTRUCTION: (brief instruction for user)
 REASONING: (one sentence explaining why this is the logical next step)`;
 
   const aiResponse = await callAPI(prompt);
+  
+  hideThinkingIndicator();
   
   if (!aiResponse) {
     updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg> Error getting AI response');
@@ -1713,6 +2309,8 @@ REASONING: (one sentence explaining why this is the logical next step)`;
     setTimeout(() => highlightNextElement(), 1000);
   }
 }
+
+
 
 function highlightElement(elem, instruction, action) {
   removeHighlights();
