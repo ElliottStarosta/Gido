@@ -6,8 +6,8 @@
          "matches": ["<all_urls>"]
        }
   ],
-  "name": "AI Navigator",
-  "version": "2.0",
+  "name": "Gido",
+  "version": "1.0",
   "description": "Navigate any website with AI assistance and voice control",
   "permissions": [
     "storage",

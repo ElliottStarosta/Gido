@@ -1534,7 +1534,7 @@ function setupTypingMagnifier() {
       height: 100% !important;
       display: flex !important;
       align-items: center !important;
-      justify-content: flex-start !important;
+      justify-content: center !important;
       padding: 20px !important;
       box-sizing: border-box !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
@@ -1542,11 +1542,10 @@ function setupTypingMagnifier() {
       font-weight: 600 !important;
       color: #1f2937 !important;
       line-height: 1.4 !important;
-      text-align: left !important;
-      white-space: nowrap !important;
+      text-align: center !important;
+      white-space: pre-wrap !important;
       word-wrap: break-word !important;
       overflow: hidden !important;
-      text-overflow: ellipsis !important;
     }
 
     .ai-typing-magnifier-label {
