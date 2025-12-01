@@ -327,6 +327,7 @@ function completeGoal() {
   // Update UI
   updateStatus('<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Goal completed with keyboard shortcut!');
   updateEndJourneyButtonVisibility();
+  showJourneyCompleteNotification();
   
   console.log('[Complete Goal] Navigation completed via Alt+Shift+E - all processes stopped');
 }
@@ -1533,7 +1534,7 @@ function setupTypingMagnifier() {
       height: 100% !important;
       display: flex !important;
       align-items: center !important;
-      justify-content: center !important;
+      justify-content: flex-start !important;
       padding: 20px !important;
       box-sizing: border-box !important;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
@@ -1541,10 +1542,11 @@ function setupTypingMagnifier() {
       font-weight: 600 !important;
       color: #1f2937 !important;
       line-height: 1.4 !important;
-      text-align: center !important;
-      white-space: pre-wrap !important;
+      text-align: left !important;
+      white-space: nowrap !important;
       word-wrap: break-word !important;
       overflow: hidden !important;
+      text-overflow: ellipsis !important;
     }
 
     .ai-typing-magnifier-label {
@@ -1879,6 +1881,9 @@ function showThinkingIndicator() {
       indicator.classList.add('show');
     }, 10);
   }
+  
+  removeHighlights();
+
 }
 
 // Hide the thinking indicator
@@ -2438,7 +2443,7 @@ async function highlightNextElement() {
 
   const historyContext = buildHistoryContext();
 
-  const prompt = `You are an AI web navigation assistant helping a user accomplish a task. Your PRIMARY JOB is to recognize when the goal has been achieved.
+  const prompt = `You are an AI web navigation assistant helping a user accomplish a task. Your PRIMARY JOB is to recognize when the goal has been achieved and to prefer direct navigation elements over searches.
 
 USER'S GOAL: "${state.goal}"
 
@@ -2451,13 +2456,27 @@ ${historyContext}
 AVAILABLE ELEMENTS ON THIS PAGE:
 ${elementList}
 
+ELEMENT PRIORITY RULES (in order):
+1. Links or buttons whose text closely matches or relates to the user's goal
+2. Buttons with descriptive text that could lead to the goal
+3. Navigation links (Home, About, Contact, Services, Pricing, Login, etc.)
+4. Search functionality (ONLY if no relevant buttons/links exist)
+5. Input fields for typing
+
 CRITICAL INSTRUCTIONS:
 1. FIRST: Determine if the goal has been ACHIEVED. If the user wanted to navigate to a website and we are now ON that website, respond with "NONE".
 2. Check if the current page URL or page content matches the goal. If yes, respond with "NONE" immediately.
-3. Only if the goal is NOT achieved, find the next logical step.
-4. Think about what a human would naturally do next to accomplish the goal.
-5. You may need to navigate between different domains/pages to complete this goal.
-6. If you need to search, look for search boxes, search buttons, or search icons.
+3. SCAN THE ELEMENTS: Look through ALL available elements and find buttons/links whose text matches or relates to the goal.
+4. If you find a button or link with text that matches the goal, SELECT IT. Do NOT use search as an alternative.
+5. ONLY consider search if:
+   - No buttons or links match the goal
+   - The goal requires a specific search term
+   - The user's goal is exploratory (e.g., "search for X")
+6. Examples of matching:
+   - Goal "find pricing" → Click "Pricing" button (NOT search)
+   - Goal "go to about" → Click "About Us" link (NOT search)
+   - Goal "login" → Click "Login" or "Sign In" button (NOT search)
+   - Goal "find a specific product" → Use search bar (no direct link exists)
 7. Choose the MOST RELEVANT element that moves closer to the goal.
 8. If no element seems relevant OR the goal appears complete, respond with "NONE".
 
@@ -2465,6 +2484,8 @@ GOAL COMPLETION EXAMPLES:
 - If goal is "navigate to the grade cs website" and current URL contains "gradecs" or "grade-cs", respond with NONE.
 - If goal is "go to google.com" and current URL is "google.com", respond with NONE.
 - If goal is "find the login page" and we are on the login page, respond with NONE.
+- If goal is "go to the about page" and there is an "About" link visible: ELEMENT_ID: elem_X, ACTION: click
+- If goal is "find pricing" and there is a "Pricing" button: ELEMENT_ID: elem_Y, ACTION: click (NOT search)
 
 RESPONSE FORMAT (respond with ONLY this format):
 ELEMENT_ID: elem_X (or NONE if goal is complete/no relevant elements)
