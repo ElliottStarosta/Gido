@@ -1529,39 +1529,42 @@ function setupTypingMagnifier() {
     }
 
     .ai-typing-magnifier-content {
-      position: absolute !important;
-      width: 100% !important;
-      height: 100% !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 20px !important;
-      box-sizing: border-box !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
-      font-size: 32px !important;
-      font-weight: 600 !important;
-      color: #1f2937 !important;
-      line-height: 1.4 !important;
-      text-align: center !important;
-      white-space: pre-wrap !important;
-      word-wrap: break-word !important;
-      overflow: hidden !important;
-    }
+  position: absolute !important;
+  width: max-content !important;  /* Let content expand beyond container */
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;  /* Align to left */
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+  font-size: 32px !important;
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+  white-space: nowrap !important;  /* Keep text on one line */
+  word-wrap: normal !important;
+  overflow: visible !important;  /* Allow content to overflow container */
+  left: 0 !important;
+  top: 0 !important;
+  transition: transform 0.3s ease-out !important;
+}
 
     .ai-typing-magnifier-label {
-      position: absolute !important;
-      top: 12px !important;
-      right: 16px !important;
-      background: rgba(21, 128, 61, 0.9) !important;
-      color: white !important;
-      padding: 4px 10px !important;
-      border-radius: 6px !important;
-      font-size: 11px !important;
-      font-weight: 700 !important;
-      letter-spacing: 0.8px !important;
-      text-transform: uppercase !important;
-      pointer-events: none !important;
-    }
+  position: absolute !important;
+  top: 10px !important;  /* Reduced from 12px */
+  right: 14px !important;  /* Reduced from 16px */
+  background: rgba(21, 128, 61, 0.9) !important;
+  color: white !important;
+  padding: 3px 8px !important;  /* Reduced from 4px 10px */
+  border-radius: 5px !important;  /* Reduced from 6px */
+  font-size: 8px !important;  /* Reduced from 11px */
+  font-weight: 700 !important;
+  letter-spacing: 0.6px !important;  /* Reduced from 0.8px */
+  text-transform: uppercase !important;
+  pointer-events: none !important;
+}
 
     .ai-typing-magnifier-cursor {
       display: inline-block !important;
@@ -1718,13 +1721,50 @@ function setupTypingMagnifier() {
   });
 
   function updateTypingContent(text) {
-    if (text.trim().length === 0) {
-      content.innerHTML = '<span class="ai-typing-magnifier-placeholder">Start typing your instruction...</span>';
-    } else {
-      // Show text with blinking cursor
-      content.innerHTML = `${escapeHtml(text)}<span class="ai-typing-magnifier-cursor"></span>`;
-    }
+  const content = document.getElementById('ai-typing-magnifier-content');
+  if (!content) return;
+  
+  if (text.trim().length === 0) {
+    content.innerHTML = '<span class="ai-typing-magnifier-placeholder">Start typing your instruction...</span>';
+    // Reset any scrolling when empty
+    content.style.transform = 'translateX(0)';
+    content.style.whiteSpace = 'nowrap';
+    return;
   }
+  
+  // Show text with blinking cursor
+  const displayText = escapeHtml(text) + '<span class="ai-typing-magnifier-cursor"></span>';
+  content.innerHTML = displayText;
+  
+  // Use nowrap to keep text on a single line
+  content.style.whiteSpace = 'nowrap';
+  
+  // Get the magnifier dimensions
+  const magnifier = document.getElementById('ai-typing-magnifier');
+  if (!magnifier) return;
+  
+  const magnifierWidth = magnifier.offsetWidth;
+  const padding = 20; // 20px padding on each side
+  const contentWidth = content.scrollWidth;
+  const availableWidth = magnifierWidth - (2 * padding);
+  
+  // Calculate if text overflows available width
+  if (contentWidth > availableWidth) {
+    // Text is too long, need to scroll
+    const overflowAmount = contentWidth - availableWidth;
+    
+    // Calculate how much to shift left (negative translateX)
+    // This shifts the content left so the end (where the cursor is) is visible
+    const translateX = -overflowAmount;
+    
+    // Apply the transformation
+    content.style.transform = `translateX(${translateX}px)`;
+    content.style.transition = 'transform 0.3s ease-out';
+  } else {
+    // Text fits, no scrolling needed
+    content.style.transform = 'translateX(0)';
+  }
+}
 
   function hideTypingMagnifier() {
     if (typingMagnifier.isActive) {
