@@ -38,7 +38,7 @@ def chat():
                 'Content-Type': 'application/json'
             },
             json={
-                'model': data.get('model', 'kwaipilot/kat-coder-pro:free'),
+                'model': data.get('model', 'arcee-ai/trinity-mini:free'),
                 'messages': data.get('messages', []),
                 'temperature': data.get('temperature', 0.2),
                 'max_tokens': data.get('max_tokens', 500)
